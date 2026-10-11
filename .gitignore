@@ -1,0 +1,7 @@
+*.db
+*.tsv
+*.json
+!examples/*.json
+!examples/*.tsv
+dashboard.html
+__pycache__/
