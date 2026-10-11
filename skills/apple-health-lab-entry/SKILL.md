@@ -16,8 +16,9 @@ description: Enter blood test / lab results into Apple Health's lab-entry panels
 
 1. Load the computer-use skill, then `computer_resolve_access(["iPhone Mirroring"])` → `computer_request_access`.
 2. Ask the user to open iPhone Mirroring and navigate the phone to the lab-entry panel they want filled. **You cannot scroll the mirrored phone** — scroll-wheel and drag gestures are not delivered; taps and typing are. Division of labour: the human scrolls/navigates, you fill forms.
-3. Background `app_*` taps work, but you'll need **full-screen control** for a reliable keyboard; request it once (`computer_request_full_control`), and keep iPhone Mirroring frontmost (`computer_open_application` if focus drifts). The mirrored window has no accessibility tree — click by coordinates from screenshots.
-4. Prepare the values first with `scripts/entry_sheet.py blood_tests.db --source <lab>` so a whole panel shares one draw date.
+3. Background `app_*` taps work, but you'll need **full-screen control** for a reliable keyboard and for pickers (in background mode, opening a picker tends to select whatever row slides under the cursor); request it once (`computer_request_full_control`), and keep iPhone Mirroring frontmost (`computer_open_application` if focus drifts). The mirrored window has no accessibility tree — click by coordinates from screenshots, and wait ~1.5 s after a sheet opens before screenshotting.
+4. **Paste long text; type only short values.** Synthetic typing of more than a few words gets scrambled on the phone (reordered/duplicated keystrokes, worst around quotes and newlines). For anything longer — a note, a description — write it to the Mac clipboard (`computer_write_clipboard`, needs the `clipboardWrite` grant) and press ⌘V in the field; iPhone Mirroring shares the clipboard and the paste is exact. Numbers for lab fields type fine.
+5. Prepare the values first with `scripts/entry_sheet.py blood_tests.db --source <lab>` so a whole panel shares one draw date.
 
 ## Filling a panel
 

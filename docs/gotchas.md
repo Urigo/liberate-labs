@@ -41,3 +41,9 @@
 **Mirroring blanks out on privacy-sensitive screens.** Tapping the Labs card's "Start" (the US-only Quest ordering flow) turned the mirror grey — likely a purchase sheet mirroring hides. Stop when the screen goes blank; don't tap blind.
 
 **Dismiss the keyboard before tapping Next.** The ✓ on the keyboard toolbar; otherwise the tap lands on the keyboard.
+
+**Don't *type* long text into a mirrored iPhone — paste it.** Synthetic typing of anything beyond a few words gets scrambled on the phone side: keystrokes reorder and duplicate, especially around quote characters (smart punctuation) and line breaks. A 1,800-character bug report came out with fragments repeated and words spliced mid-stream, three times in a row. iPhone Mirroring shares the Mac clipboard, so write the text to the Mac clipboard and press ⌘V in the field — it lands byte-exact, paragraphs and all. Short values (numbers, a word) type fine.
+
+**Background mode selects the wrong picker row.** In background (`app_*`) control, tapping a row that opens a sheet/picker tends to also "select" whichever row slides under the cursor as the sheet animates in — we got Apple Intelligence, App Switcher and App Store in turn when aiming at Health. Full-screen control sends proper press/release and doesn't do this. Also: wait ~1.5 s after opening a sheet before screenshotting, or you'll click coordinates from a mid-animation frame.
+
+**The Mac's own Control Center / Notification Center can steal focus** mid-task if a click lands near the menu bar; if typing suddenly goes nowhere, re-front iPhone Mirroring before continuing.
