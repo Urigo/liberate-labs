@@ -6,13 +6,23 @@ I had blood work in two places I didn't control. My Israeli HMO, Maccabi, holds 
 
 The code and two reusable Claude skills are in [liberate-labs](https://github.com/Urigo/liberate-labs). None of my values are in there; the techniques are the point.
 
+## Part 0 — The tool I should have looked for first
+
+After all of the below was working, I asked the obvious question I should have asked at the start: has someone already written a deterministic exporter for Maccabi? Yes. [Health Records Export for Maccabi](https://github.com/RoniRachmani/health-records-export-for-maccabi), by Roni Rachmani, is an MIT-licensed Chrome extension on the Web Store that saves the *entire* account — every lab panel as JSON, a per-measurement history that reaches back further than the results lobby shows, visits, prescriptions, referrals, letters, and the full medical file as a PDF — into one ZIP, in about three minutes, with no AI in the loop. It reuses the session you're logged in with, calls the portal's REST API one request at a time, and documents every endpoint it touches. Its one side effect is that it orders a fresh copy of your medical file, so Maccabi texts you when it starts.
+
+For Maccabi, that is now the whole extraction step: run the extension, point `build_db.py --maccabi-export` at the ZIP. An agent clicking through result pages is the right move for a portal nobody has written a tool for — and most portals are that — but it is slow, costs tokens every run, and can mis-click. A purpose-built exporter is faster, free to re-run, reproducible, and gives you a stable file format to diff month to month. The lesson for agents and humans alike: search for `<portal> export extension` before you scrape.
+
+Reading its source also corrected a mistake of mine, below. The rest of Part 1 is still the generic technique, and it is what I'd reach for on the next locked portal.
+
 ## Part 1 — Getting the data out
 
 ### Don't replay the API. Read the React state.
 
-Both portals are React single-page apps that fetch results from an authenticated API and render them. My first instinct was to replay the API: find the request in the network tab, copy the auth header, loop over IDs. Maccabi's results endpoint (`getresultsbyid`) took a bearer token happily and then returned an empty `results: []` for every ID — it wanted a per-request hash I'd have had to reverse out of minified JavaScript.
+Both portals are React single-page apps that fetch results from an authenticated API and render them. My first instinct was to replay the API: find the request in the network tab, copy the auth header, loop over IDs. Maccabi's results endpoint (`getresultsbyid`) took a bearer token happily and then returned an empty `results: []` for every ID. I concluded it wanted a per-request hash I'd have had to reverse out of minified JavaScript.
 
-So I stopped fighting the API and read what it had already rendered. Every React component keeps its props on the DOM node under a `__reactFiber$…` key. Walk upward from any element through `memoizedProps` and `.return`, and somewhere you'll find the prop holding the array you want. On Maccabi it's called `labResultData`: an array of groups, each with `group_values` of `{test_desc, result, min_lim, max_lim, units, lab_date}`. Clean, structured, and no auth required beyond already being logged in.
+That conclusion was wrong, and I only learned it from the extension's code: the endpoint answers a plain replay as long as the body carries `doc_id` and the two gender fields alongside `request_id`. The signed `hash` and `t` fields I'd seen only protect the PDF download URL. An empty 200 usually means a missing field, not a signature. Diff your body against the page's own request before giving up on an API.
+
+Still, I'd stopped fighting the API and read what it had already rendered, and that turned out to be the more general trick. Every React component keeps its props on the DOM node under a `__reactFiber$…` key. Walk upward from any element through `memoizedProps` and `.return`, and somewhere you'll find the prop holding the array you want. On Maccabi it's called `labResultData`: an array of groups, each with `group_values` of `{test_desc, result, min_lim, max_lim, units, lab_date}`. Clean, structured, and no auth required beyond already being logged in.
 
 ```js
 // find the results prop on any page that has rendered it
@@ -42,9 +52,9 @@ That's a general-purpose trick for any agent that can observe a tab's network tr
 
 ### Qualitative results hide in a different field
 
-Thirty-six Maccabi rows came back as `result: 0`. They weren't zeros; they were "NEGATIVE," "HIV negative," and "Folic Acid >10 ng/ml," living in a `message` field or, for a few, in `message_list[0]`. And `min_lim: 0, max_lim: 0` means "no reference range," not a range of zero. Every portal has a shape like this; budget time to find it.
+Thirty-six Maccabi rows came back as `result: 0`. They weren't zeros; they were "NEGATIVE," "HIV negative," and "Folic Acid >10 ng/ml," living in a `message` field or, for a few, in `message_list[0]`. And `min_lim: 0, max_lim: 0` means "no reference range," not a range of zero. Every portal has a shape like this; budget time to find it. (The extension's README documents these and more — `is_messages == "2"` flags a text-only answer, and units and ranges for the same measurement can change between dates — in the data dictionary it writes into every export. If you work with Maccabi data, read that first.)
 
-The result: one SQLite database, 581 results across 22 draws, 2020–2026, with a `v_results` view that lets you trend a marker across both labs. The dashboard script turns that into small multiples with reference bands.
+The result: one SQLite database, 581 results across 22 draws, 2020–2026, with a `v_results` view that lets you trend a marker across both labs. The dashboard script turns that into small multiples with reference bands. The same loader now takes the extension's ZIP, loading each value once even though the export holds it up to three times, and picking up the older values that only its per-measurement history reaches.
 
 ## Part 2 — Getting the data in
 
@@ -68,7 +78,8 @@ Also: results must be dated within the last 12 months, so the 2020–2025 histor
 
 ## What I'd take away
 
-- For locked portals: rendered state beats the API; `window.name` beats every other variable; the network log is a write channel when downloads fail.
+- Before scraping anything: search for an existing exporter. For Maccabi it exists, it's excellent, and it made most of Part 1 unnecessary for that portal.
+- For locked portals with no such tool: rendered state beats the API; `window.name` beats every other variable; the network log is a write channel when downloads fail. And when an API replay comes back empty, suspect a missing body field before a signature.
 - For agents: tool return values are not a data path. Design for the channels that overflow to files.
 - For Apple Health: it's a trust model, not a missing feature — and when the door finally opens, read the units.
 

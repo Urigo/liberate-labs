@@ -1,0 +1,64 @@
+{
+ "endpoint": "GET TestResultsAPI/v1/compare/0/{mid}/compare?test_id=2947&date_of_result=2026-06-09T00:00:00",
+ "fetched_at": "2026-10-11T07:30:00.000Z",
+ "status": 200,
+ "test_id": "2947",
+ "test_desc": "Glucose (B)",
+ "date_of_result": "2026-06-09T00:00:00",
+ "data": {
+  "current_result": {
+   "test_id": "2947",
+   "test_desc": "Glucose (B)",
+   "result": 92,
+   "message": "",
+   "message_list": [],
+   "is_messages": "0",
+   "min_lim": 70,
+   "max_lim": 100,
+   "units": "mg/dl",
+   "lab_date": "2026-06-09T00:00:00",
+   "numeric_percentage": 0
+  },
+  "other_results": [
+   {
+    "test_id": "2947",
+    "test_desc": "Glucose (B)",
+    "result": 94,
+    "message": "",
+    "message_list": [],
+    "is_messages": "0",
+    "min_lim": 70,
+    "max_lim": 100,
+    "units": "mg/dl",
+    "lab_date": "2025-05-29T00:00:00",
+    "numeric_percentage": 0
+   },
+   {
+    "test_id": "2947",
+    "test_desc": "Glucose (B)",
+    "result": 89,
+    "message": "",
+    "message_list": [],
+    "is_messages": "0",
+    "min_lim": 70,
+    "max_lim": 100,
+    "units": "mg/dl",
+    "lab_date": "2024-05-07T00:00:00",
+    "numeric_percentage": 0
+   },
+   {
+    "test_id": "2947",
+    "test_desc": "Glucose (B)",
+    "result": 97,
+    "message": "",
+    "message_list": [],
+    "is_messages": "0",
+    "min_lim": 70,
+    "max_lim": 100,
+    "units": "",
+    "lab_date": "2019-03-12T00:00:00",
+    "numeric_percentage": 0
+   }
+  ]
+ }
+}

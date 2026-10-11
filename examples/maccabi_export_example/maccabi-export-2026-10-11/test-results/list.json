@@ -1,0 +1,51 @@
+{
+ "endpoint": "POST TestResultsAPI/v1/members/0/{mid}/tests",
+ "fetched_at": "2026-10-11T07:30:00.000Z",
+ "status": 200,
+ "data": {
+  "tests": [
+   {
+    "type": "lab_result",
+    "request_id": 10000001,
+    "doc_id": "2::lab_result::10000001::00000000::0",
+    "test_name": [
+     "מעבדה"
+    ],
+    "test_category": [],
+    "execute_date": "2024-05-07T00:00:00",
+    "referrer_name": "ד\"ר ישראלי",
+    "result_files": false,
+    "time_stamp": "T",
+    "hash": "h"
+   },
+   {
+    "type": "lab_result",
+    "request_id": 10000002,
+    "doc_id": "2::lab_result::10000002::00000000::0",
+    "test_name": [
+     "מעבדה"
+    ],
+    "test_category": [],
+    "execute_date": "2025-05-29T00:00:00",
+    "referrer_name": "ד\"ר ישראלי",
+    "result_files": false,
+    "time_stamp": "T",
+    "hash": "h"
+   },
+   {
+    "type": "lab_result",
+    "request_id": 10000003,
+    "doc_id": "2::lab_result::10000003::00000000::0",
+    "test_name": [
+     "מעבדה"
+    ],
+    "test_category": [],
+    "execute_date": "2026-06-09T00:00:00",
+    "referrer_name": "ד\"ר ישראלי",
+    "result_files": false,
+    "time_stamp": "T",
+    "hash": "h"
+   }
+  ]
+ }
+}

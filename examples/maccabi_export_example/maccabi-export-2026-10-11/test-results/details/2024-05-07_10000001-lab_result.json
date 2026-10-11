@@ -1,0 +1,81 @@
+{
+ "endpoint": "POST TestResultsAPI/v1/members/0/{mid}/getresultsbyid",
+ "fetched_at": "2026-10-11T07:30:00.000Z",
+ "status": 200,
+ "request_id": "10000001",
+ "type": "lab_result",
+ "data": {
+  "results": [
+   {
+    "group_name": "כימיה בדם",
+    "group_values": [
+     {
+      "test_id": "2947",
+      "test_desc": "Glucose (B)",
+      "result": 89,
+      "message": "",
+      "message_list": [],
+      "is_messages": "0",
+      "min_lim": 70,
+      "max_lim": 100,
+      "units": "mg/dl",
+      "lab_date": "2024-05-07T00:00:00",
+      "numeric_percentage": 0
+     },
+     {
+      "test_id": "3037",
+      "test_desc": "HbA1C",
+      "result": 5.4,
+      "message": "",
+      "message_list": [
+       "5.7-6.4 % = Prediabetes"
+      ],
+      "is_messages": "1",
+      "min_lim": 4,
+      "max_lim": 5.6,
+      "units": "% Total Hb.",
+      "lab_date": "2024-05-07T00:00:00",
+      "numeric_percentage": 0
+     }
+    ]
+   },
+   {
+    "group_name": "המטולוגיה",
+    "group_values": [
+     {
+      "test_id": "50229",
+      "test_desc": "Platelets",
+      "result": 225,
+      "message": "",
+      "message_list": [],
+      "is_messages": "0",
+      "min_lim": 140,
+      "max_lim": 400,
+      "units": "10*3/micl",
+      "lab_date": "2024-05-07T00:00:00",
+      "numeric_percentage": 0
+     }
+    ]
+   },
+   {
+    "group_name": "בקטריולוגיה",
+    "group_values": [
+     {
+      "test_id": "6593",
+      "test_desc": "Syphilis Ab",
+      "result": 0,
+      "message": "NEGATIVE",
+      "message_list": [],
+      "is_messages": "2",
+      "min_lim": 0,
+      "max_lim": 0,
+      "units": "",
+      "lab_date": "2024-05-07T00:00:00",
+      "numeric_percentage": 0
+     }
+    ]
+   }
+  ],
+  "hash": "h"
+ }
+}

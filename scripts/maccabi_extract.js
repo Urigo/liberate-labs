@@ -1,10 +1,19 @@
 /**
  * Maccabi Online (online.maccabi4u.co.il) — lab results extraction.
  *
+ * >>> PREFER THE EXTENSION. For Maccabi there is a purpose-built, deterministic
+ * >>> exporter: "Health Records Export for Maccabi" by Roni Rachmani
+ * >>> (https://github.com/RoniRachmani/health-records-export-for-maccabi).
+ * >>> One click, every panel plus per-measurement history, no agent in the loop.
+ * >>> Feed its ZIP to build_db.py --maccabi-export. This file is the fallback,
+ * >>> and the generic technique for portals that have no such tool.
+ *
  * The portal is a React SPA. Results are fetched from
  *   POST /sonline/TestResultsAPI/webapi/mac/v1/members/0/<MEMBER_ID>/getresultsbyid
- * but replaying that call needs a per-request hash, so we don't bother.
- * Instead we read the rendered React state on each result page.
+ * Our replay of that call came back empty; the extension's code shows why —
+ * it needs doc_id and logged_user_gender/current_user_gender in the body, not
+ * just request_id. Rather than replay the API, this file reads the rendered
+ * React state on each result page, which needs nothing but being logged in.
  *
  * FLOW
  *  1. On the results lobby (/sonline/testsResults/TestsResults/lobby/) run STEP 1

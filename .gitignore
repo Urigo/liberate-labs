@@ -5,3 +5,5 @@
 !examples/*.tsv
 dashboard.html
 __pycache__/
+!examples/**/*.json
+!examples/**/*.tsv

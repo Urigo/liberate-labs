@@ -2,7 +2,11 @@
 
 ## Getting data out of portals
 
-**Read React state, not the API.** Both portals render results from an authenticated API into React component props. The Maccabi API needs a per-request hash we never bothered to reverse; the rendered `labResultData` prop has the same data. Walk `el.__reactFiber$…` → `memoizedProps` upward from any DOM node and look for the array you want. Poll — the data arrives a beat after `DOMContentLoaded`.
+**Look for a deterministic exporter before you scrape.** We built an agent-driven extraction for Maccabi and only afterwards found [Health Records Export for Maccabi](https://github.com/RoniRachmani/health-records-export-for-maccabi), a Chrome extension that does the whole account in ~3 minutes with no AI in the loop, including a per-measurement history that reaches further back than the results lobby shows. For repeat use it wins on every axis: speed, cost, reproducibility, a stable file format. Search `<portal> export extension` / `<portal> github` first; `build_db.py --maccabi-export` takes its ZIP directly.
+
+**Our "the API needs a per-request hash" diagnosis was wrong.** Maccabi's `getresultsbyid` returned `results: []` when we replayed it, and we concluded it wanted a hash. The extension's source shows it answers a plain bearer-token request — the body just has to carry `doc_id`, `logged_user_gender` and `current_user_gender` alongside `request_id`. The per-request `hash`/`t` fields only sign the PDF download URL. Lesson: an empty 200 usually means a missing field, not a signature; diff your body against the page's own request before giving up on the API.
+
+**Read React state, not the API — when you can't fix the API.** Both portals render results from an authenticated API into React component props, and the rendered `labResultData` prop has the same data as the response. Walk `el.__reactFiber$…` → `memoizedProps` upward from any DOM node and look for the array you want. Poll — the data arrives a beat after `DOMContentLoaded`. It needs nothing but being logged in, which is why it's the right generic fallback.
 
 **Full-page reloads wipe your variables; `window.name` doesn't.** Maccabi's result pages are full navigations, so every `window.*` accumulator you set is gone on the next page. `window.name` is the one string that survives navigation — even cross-origin. Store a JSON array there and append per page. (Budget: it held 156 KB without complaint.)
 
@@ -14,7 +18,7 @@
 
 **Agent tool outputs truncate at ~1,400 chars and *block* base64.** Don't try to pull data out through `javascript_tool` return values in big chunks; the display truncates, and anything that looks like base64 or a JWT is redacted entirely. Plain TSV passes.
 
-**Maccabi data shape traps.** `result` is `0` for qualitative tests — the real answer is in `message` ("NEGATIVE") or, for a few (HIV Ab, Folic Acid, Hep B Ab, SARS-CoV-2 PCR), in `message_list[0]`. `min_lim`/`max_lim` of `0`/`0` means "no range," not zero. Units are free text (`10*3/micl`, `% Total Hb.`).
+**Maccabi data shape traps.** `result` is `0` for qualitative tests — the real answer is in `message` ("NEGATIVE") or, for a few (HIV Ab, Folic Acid, Hep B Ab, SARS-CoV-2 PCR), in `message_list`; `is_messages == "2"` flags "answer only in text". `min_lim`/`max_lim` of `0`/`0` means "no range," not zero. Units are free text (`10*3/micl`, `% Total Hb.`) and, per the extension's README, units and ranges for the same `test_id` can change between dates, with older `units` sometimes blank — judge each value against its own range and don't trend across a method change. The extension's export holds each value up to three times (`details/` by panel, `history/` by measurement, `latest-lab-results.json`); count each `(test_id, lab_date)` once.
 
 **Blueprint includes uploads.** `/account-health/lab-test` returns everything on the account, including third-party PDFs the user uploaded (`status: "Uploaded"`, `labName: "Unknown"`). Filter to `status === "Results Ready"` for Blueprint's own draws.
 
