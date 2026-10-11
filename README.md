@@ -6,6 +6,8 @@ Built around two real portals — **Maccabi Healthcare Services (מכבי שיר
 
 > **Hebrew / עברית:** ייצוא תוצאות בדיקות דם ממכבי (מכבי אונליין) לקובץ SQLite / CSV, מעקב מגמות לאורך זמן, והזנה ל-Apple Health. אין במכבי אונליין כפתור ייצוא — הסקריפטים כאן מוציאים את הנתונים ישירות מהדפדפן.
 
+**Read the story first:** [docs/writeup.md](docs/writeup.md) — why the obvious approaches failed and what worked, for both the portal side and the Apple Health side.
+
 ## What's here
 
 | Path | What it does |
@@ -18,7 +20,8 @@ Built around two real portals — **Maccabi Healthcare Services (מכבי שיר
 | `dashboard/` | Self-contained HTML trends dashboard (small multiples, reference bands, light/dark, table view). |
 | `skills/lab-portal-export/` | A Claude skill: drive the browser to extract labs from a locked portal. |
 | `skills/apple-health-lab-entry/` | A Claude skill: enter lab results into Apple Health via iPhone Mirroring + computer control. |
-| `docs/gotchas.md` | Everything that bit us. Read this first. |
+| `docs/writeup.md` | The narrative: how it was done and what we learned. |
+| `docs/gotchas.md` | Everything that bit us, as a checklist. |
 
 ## The short version
 
