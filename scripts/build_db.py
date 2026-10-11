@@ -17,6 +17,8 @@ Maccabi results can come from either of two sources:
 Usage:
     python build_db.py --blueprint blueprint_tests.json --maccabi-export maccabi-export-2026-10-11.zip --out blood_tests.db
     python build_db.py --blueprint blueprint_tests.json --maccabi maccabi_all.tsv --out blood_tests.db
+    # refresh Maccabi from a new export, keep Blueprint from the previous database:
+    python build_db.py --carry old.db:blueprint --maccabi-export maccabi-export-2026-11-01.zip --out blood_tests.db
 
 Schema
 ------
@@ -121,7 +123,7 @@ def load_blueprint(c, path):
 # ----------------------------------------------------------------------------
 
 def insert_maccabi_rows(c, rows, tests=None):
-    """rows: dicts with MACCABI_COLS keys (+ optional 'is_messages').
+    """rows: dicts with MACCABI_COLS keys (+ optional 'is_messages', 'interpretation').
     tests: optional {requestId: {"date":..., "referrer":..., "name":...}} from the export's list.json."""
     tests = tests or {}
     ids = {}
@@ -150,7 +152,7 @@ def insert_maccabi_rows(c, rows, tests=None):
         c.execute("""INSERT INTO result(lab_test_id,source,test_date,panel,biomarker,value_num,value_text,unit,
                      ref_min,ref_max,interpretation,status,is_abnormal,tags,source_ref) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (ids[r["requestId"]], "maccabi", r["lab_date"] or None, r["group"] or None, r["test_desc"],
-                   vnum, vtext, r["units"] or None, mn, mx, None, None, abn, None, r["test_id"] or None))
+                   vnum, vtext, r["units"] or None, mn, mx, r.get("interpretation") or None, None, abn, None, r["test_id"] or None))
         n += 1
     return n
 
@@ -190,16 +192,21 @@ def _unwrap(text):
 
 
 def _value_row(v, rid, group):
+    """One group_values[] entry as a TSV-shaped row. `message` carries the short answer (the site's
+    `message`, else the first line of `message_list` when there is no number); the whole note
+    (`message_list` joined — a reference range, a method change, an interpretation) goes to
+    `interpretation` so the value column stays short and the note is not lost."""
     msg = clean(v.get("message"))
-    ml = v.get("message_list")
-    if not msg and isinstance(ml, list) and ml and num(v.get("result")) in (None, 0.0):
-        msg = clean(" ".join(str(x) for x in ml if x))
+    ml = [clean(x) for x in (v.get("message_list") or []) if clean(x)] if isinstance(v.get("message_list"), list) else []
+    if not msg and ml and num(v.get("result")) in (None, 0.0):
+        msg = ml[0]
+    note = " ".join(ml)
     return {
         "requestId": rid, "lab_date": iso(v.get("lab_date")), "group": clean(group),
         "test_id": clean(v.get("test_id")), "test_desc": clean(v.get("test_desc")),
         "result": v.get("result", ""), "message": msg,
         "min": v.get("min_lim", ""), "max": v.get("max_lim", ""), "units": clean(v.get("units")),
-        "is_messages": v.get("is_messages", ""),
+        "is_messages": v.get("is_messages", ""), "interpretation": note if note and note != msg else None,
     }
 
 
@@ -277,12 +284,36 @@ def load_maccabi_export(c, path):
 
 
 # ----------------------------------------------------------------------------
+# Carry a source over from an earlier database (e.g. keep Blueprint while
+# rebuilding Maccabi from a fresh export when the raw Blueprint JSON is gone)
+# ----------------------------------------------------------------------------
+
+def carry_source(c, old_db, source):
+    old = sqlite3.connect(old_db)
+    n = 0
+    for lt in old.execute("SELECT id, source_test_id, test_name, lab_name, test_date, referrer FROM lab_test WHERE source=?", (source,)):
+        c.execute("INSERT INTO lab_test(source,source_test_id,test_name,lab_name,test_date,referrer) VALUES(?,?,?,?,?,?)",
+                  (source,) + tuple(lt[1:]))
+        new_id = c.lastrowid
+        for r in old.execute("""SELECT test_date,panel,biomarker,value_num,value_text,unit,ref_min,ref_max,interpretation,
+                                       status,is_abnormal,tags,source_ref FROM result WHERE lab_test_id=?""", (lt[0],)):
+            c.execute("""INSERT INTO result(lab_test_id,source,test_date,panel,biomarker,value_num,value_text,unit,
+                         ref_min,ref_max,interpretation,status,is_abnormal,tags,source_ref) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (new_id, source) + tuple(r))
+            n += 1
+    old.close()
+    return n
+
+
+# ----------------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--blueprint", help="Blueprint JSON from scripts/blueprint_extract.js")
     ap.add_argument("--maccabi", help="TSV from scripts/maccabi_extract.js (console route)")
     ap.add_argument("--maccabi-export", help="ZIP or folder from the Health Records Export for Maccabi extension")
+    ap.add_argument("--carry", action="append", default=[], metavar="OLD.db:SOURCE",
+                    help="copy one source's rows from an earlier database, e.g. old.db:blueprint (repeatable)")
     ap.add_argument("--out", default="blood_tests.db")
     a = ap.parse_args()
     if os.path.exists(a.out):
@@ -292,6 +323,9 @@ def main():
     c.executescript(SCHEMA)
     if a.blueprint:
         print("blueprint results:", load_blueprint(c, a.blueprint))
+    for spec in a.carry:
+        old_db, source = spec.rsplit(":", 1)
+        print(f"{source} results carried from {old_db}:", carry_source(c, old_db, source))
     if a.maccabi_export:
         print("maccabi results (extension export):", load_maccabi_export(c, a.maccabi_export))
     if a.maccabi:

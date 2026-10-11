@@ -19,13 +19,21 @@ python scripts/build_db.py --maccabi-export ~/Downloads/maccabi-export-2026-10-1
                            --blueprint blueprint_tests.json --out blood_tests.db
 ```
 
-That's the whole Maccabi side. The browser-console route below (`scripts/maccabi_extract.js`) still works and is kept as the generic technique for portals that *don't* have a tool like this — which is most of them.
+That's the whole Maccabi side. To refresh later, run the extension again and rebuild, keeping the other sources from the previous database:
+
+```sh
+python scripts/build_db.py --carry blood_tests.db:blueprint --maccabi-export ~/Downloads/maccabi-export-2026-11-01.zip --out blood_tests_new.db
+```
+
+**No extension, no clicks:** the same collector runs from the terminal. `npm run export` in that repo (proposed upstream as a pull request; until it lands, apply [`docs/upstream/headless-export.patch`](docs/upstream/headless-export.patch) to a clone with `git am`) opens Chrome, signs in with credentials from 1Password or `.env`, pulls test results and every measurement's history in about 90 seconds, orders nothing (so no SMS), and writes the same folder the ZIP holds; `build_db.py --maccabi-export <folder>` reads it directly. That's the version to put on a schedule.
+
+The browser-console route below (`scripts/maccabi_extract.js`) still works and is kept as the generic technique for portals that *don't* have a tool like this — which is most of them.
 
 ## What's here
 
 | Path | What it does |
 |---|---|
-| `scripts/build_db.py` | Normalises everything into one SQLite schema (`lab_test`, `result`, `v_results`). Reads the Maccabi extension's ZIP/folder (`--maccabi-export`), the console-route TSV (`--maccabi`), and Blueprint JSON (`--blueprint`). Handles qualitative results, "no range" sentinels, and de-duplicates the export's three copies of each value. |
+| `scripts/build_db.py` | Normalises everything into one SQLite schema (`lab_test`, `result`, `v_results`). Reads the Maccabi extension's ZIP/folder (`--maccabi-export`), the console-route TSV (`--maccabi`), and Blueprint JSON (`--blueprint`); `--carry old.db:source` keeps a source from an earlier build. Handles qualitative results (short answer in `value_text`, the lab's note in `interpretation`), "no range" sentinels, and de-duplicates the export's three copies of each value. |
 | `scripts/blueprint_extract.js` | Pulls the full biomarker list for a Blueprint test straight from its API using the page's own session token. |
 | `scripts/maccabi_extract.js` | Fallback / generic technique: browser-console snippets that pull every lab panel out of a React portal's rendered state and move it out of the page (two escape hatches for when downloads are blocked). |
 | `scripts/assemble_from_network_log.py` | Reassembles data smuggled out through URL-encoded `fetch` requests (the "network-log channel"). |

@@ -1,0 +1,1255 @@
+From 4813d6349c36209d922fcdcd06d5cabe739f4ed8 Mon Sep 17 00:00:00 2001
+From: Uri Goldshtein <uri.goldshtein@gmail.com>
+Date: Sun, 11 Oct 2026 09:27:29 +0000
+Subject: [PATCH] Export from the terminal without the extension: npm run
+ export
+
+A member who wants their records on a schedule, or without installing
+anything, runs the collector from Node. scripts/headless-export.mjs opens
+the browser and signs in as scripts/live-run.mjs does (that part moves to
+scripts/maccabi-browser.mjs, shared by both), bundles src/core/ with Vite
+into dist-cli/ through src/cli/index.ts, and runs the steps with two seams
+of its own (scripts/headless-lib.mjs): the Maccabi Online page as the
+Transport, with every request evaluated inside the page as the extension
+sends them from the tab, and a folder as the Sink, with the extension's
+write rules and a content index so a rerun asks for no document it has.
+The folder gets the same root files as a ZIP, README.md included.
+
+Test results by default, --all for every section, --steps for some. It
+never orders the medical file, so nothing on the account changes and
+Maccabi sends no SMS. test/headless.test.ts runs the test-results step
+through both seams against the fake site, with the in-page sources
+evaluated for real.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GsQpnRtnHsNbpFFRNrz7A5
+---
+ .gitignore                  |   1 +
+ CLAUDE.md                   |   2 +
+ README.md                   |  24 ++++
+ package.json                |   1 +
+ scripts/headless-export.mjs | 173 +++++++++++++++++++++++
+ scripts/headless-lib.d.mts  |  28 ++++
+ scripts/headless-lib.mjs    | 189 +++++++++++++++++++++++++
+ scripts/live-run.mjs        | 253 ++-------------------------------
+ scripts/maccabi-browser.mjs | 270 ++++++++++++++++++++++++++++++++++++
+ src/cli/index.ts            |   8 ++
+ test/headless.test.ts       | 138 ++++++++++++++++++
+ 11 files changed, 843 insertions(+), 244 deletions(-)
+ create mode 100644 scripts/headless-export.mjs
+ create mode 100644 scripts/headless-lib.d.mts
+ create mode 100644 scripts/headless-lib.mjs
+ create mode 100644 scripts/maccabi-browser.mjs
+ create mode 100644 src/cli/index.ts
+ create mode 100644 test/headless.test.ts
+
+diff --git a/.gitignore b/.gitignore
+index 932c525..baad550 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,6 +2,7 @@ node_modules/
+ dist/
+ dist-dev/
+ dist-store/
++dist-cli/
+ release/
+ coverage/
+ *.zip
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 22d0fca..d7d153b 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -17,6 +17,8 @@ npm run dev                       # watch build into dist-dev/ (dev build, extra
+ npm run build                     # typecheck + store build into dist/
+ npm run package                   # build + release/<name>-<version>.zip (refuses a dev build)
+ npm run live                      # a live export on your own account, never ordering, no ZIP (1Password refs in .env)
++npm run export                    # an export with no extension: test results into ./maccabi-export-<today>/ (same .env)
++npm run export -- --all           # every section, nothing ordered; --steps a,b for some; --out DIR; --keep
+ npm run clean                     # remove dist/, dist-dev/, dist-store/, release/
+ npm run release:zip               # clean, test, build:dev, package
+ npm run release                   # release:zip, then store-assets, store-video
+diff --git a/README.md b/README.md
+index 2ef3d30..fd89c7e 100644
+--- a/README.md
++++ b/README.md
+@@ -471,6 +471,30 @@ script retrying a wrong password is how an account gets locked. The browser prof
+ reused: every new sign-in ends your other sessions. Branded Chrome ignores `--load-extension`; there, load
+ `dist-dev/` by hand once in that profile, and the script says so when it finds no extension answering.
+ 
++### An export from the terminal, without the extension
++
++`npm run export` makes an export with no extension installed: it opens the same browser and signs in the same way as
++`npm run live` (the profile, `.env` and 1Password references above), then runs the collector in Node — `src/core/`
++bundled for it into `dist-cli/` — with the requests sent from inside the Maccabi Online page, as the extension sends
++them from the tab, and writes the folder the ZIP would hold into `./maccabi-export-<today>/`, root files included:
++the `README.md`, `CLAUDE.md`, `AGENTS.md` and `export-errors.json` of a popup export, so an assistant reads it the same.
++
++```sh
++npm run export                          # test results and lab histories: about a minute, and nothing on the account changes
++npm run export -- --all                 # every section the extension collects
++npm run export -- --steps visits,referrals   # just those (the names in STEPS, src/core/steps.ts)
++npm run export -- --out ~/health        # the folder goes under that directory; --keep leaves the browser open
++```
++
++It never orders the medical file — the one request that changes anything, and what makes Maccabi send an SMS — so
++`--all` takes the medical file already on the site, if there is one. A rerun into the same folder rewrites only the
++JSON that changed and asks for no document it already has, which is what Resume does for a popup run. Like the
++popup, it ends the member's other Maccabi sessions when it has to sign in, and a wrong password is never resubmitted.
++For a member who wants their records refreshed on a schedule, or who would rather not install an extension, this is
++the way; the popup remains the way for everyone else. `scripts/headless-lib.mjs` holds the two seams it puts under
++the collector, the page as `Transport` and a folder as `Sink`, and `test/headless.test.ts` runs the test-results step
++through them against the fake site.
++
+ ### Releasing
+ 
+ ```sh
+diff --git a/package.json b/package.json
+index 753de4d..25e0476 100644
+--- a/package.json
++++ b/package.json
+@@ -23,6 +23,7 @@
+     "test": "vitest run",
+     "icons": "node scripts/make-icons.mjs",
+     "live": "vite build --mode development && node scripts/live-run.mjs",
++    "export": "node scripts/headless-export.mjs",
+     "store-assets": "node scripts/store-assets.mjs",
+     "store-video": "node scripts/store-video.mjs",
+     "site-check": "node scripts/site-check.mjs",
+diff --git a/scripts/headless-export.mjs b/scripts/headless-export.mjs
+new file mode 100644
+index 0000000..597238f
+--- /dev/null
++++ b/scripts/headless-export.mjs
+@@ -0,0 +1,173 @@
++// An export from the terminal, with no extension: the same collector the extension runs (src/core/),
++// driven from Node against a browser this script opens and signs in to, writing the same folder the
++// ZIP would hold. For a member who wants the export on a schedule, or just without a popup.
++//
++//   npm run export                        test results and lab histories into ./maccabi-export-<today>/
++//   npm run export -- --all               every section the extension collects, except that nothing is
++//                                         ordered: the medical file already on the site is taken as it is
++//   npm run export -- --steps visits,referrals
++//                                         just those steps (names from STEP_ORDER in src/core/steps.ts)
++//   npm run export -- --out ~/health      the export folder goes under that directory
++//   npm run export -- --keep              leave the browser open at the end
++//
++// The browser and the sign-in are scripts/maccabi-browser.mjs: a real Chrome, Chromium or Edge with a
++// profile outside the repo, so a live session is reused, and the username and password from 1Password
++// references in .env, filled once. The requests themselves are sent from inside the Maccabi Online
++// page, as the extension sends them from the tab: the site's bot protection accepts page requests, and
++// the legacy /online/ services answer only a tab that has their page loaded. So the browser window is
++// real and visible; nothing here is headless in the --headless sense, only in that no one has to click.
++//
++// What the extension's run does and this does not: order the medical file (the one request that changes
++// anything on the account, and what makes Maccabi send an SMS), pause when the tab is hidden (the script
++// keeps the window; leave it be), resume a run across sessions (a rerun into the same folder skips the
++// files it already has, which is the same thing for an export that takes minutes), and build the ZIP (a
++// folder is what the assistants open anyway; zip it yourself if you want one).
++//
++// Nothing here prints a credential or a record: what it reports is step names, counts and problem lines,
++// with the member id written as {mid} as the export's own files write it.
++import { mkdirSync, readFileSync } from 'node:fs';
++import { join, resolve } from 'node:path';
++import { pathToFileURL } from 'node:url';
++import { build } from 'vite';
++import { ACTIVITY_IN_PAGE, folderSink, pageTransport, sessionOf } from './headless-lib.mjs';
++import { START, openBrowser, signIn } from './maccabi-browser.mjs';
++import { root, sleep } from './stage.mjs';
++
++const args = process.argv.slice(2);
++const flag = (name) => args.includes(name);
++const option = (name) => {
++  const i = args.indexOf(name);
++  return i >= 0 ? args[i + 1] : undefined;
++};
++const KEEP = flag('--keep');
++const ALL = flag('--all');
++const STEPS_ARG = option('--steps');
++const OUT = resolve(option('--out') || '.');
++
++/** The site logs the tab out after ~6 min without a click; a mousedown every 2 min keeps it (see keepSessionAlive in tab.ts). */
++const ALIVE_MS = 120_000;
++
++/** The TypeScript sources, bundled for Node: src/cli/index.ts re-exports what this script uses. */
++async function loadCore() {
++  const out = join(root, 'dist-cli');
++  await build({
++    root,
++    configFile: false,
++    logLevel: 'warn',
++    publicDir: false,
++    define: { __DEV_BRIDGE__: 'false' },
++    build: {
++      outDir: out,
++      emptyOutDir: true,
++      minify: false,
++      target: 'es2022',
++      lib: { entry: join(root, 'src/cli/index.ts'), formats: ['es'], fileName: () => 'core.mjs' },
++      rollupOptions: { external: ['fflate'] },
++    },
++  });
++  return import(pathToFileURL(join(out, 'core.mjs')).href);
++}
++
++// ---- the run --------------------------------------------------------------------------------------
++
++/** Navigates and waits until the page's path matches; the token is only issued and renewed on /sonline/. */
++async function goTo(page, url, pathRe) {
++  await page.navigate(url);
++  for (let i = 0; i < 60; i++) {
++    await sleep(500);
++    const path = await page.probe('location.pathname', '');
++    if (pathRe.test(path)) return;
++  }
++  throw new Error('The page did not reach ' + url);
++}
++
++async function main() {
++  const core = await loadCore();
++  const wanted = ALL ? core.STEP_ORDER : STEPS_ARG ? STEPS_ARG.split(',') : ['testResults'];
++  for (const s of wanted) if (!core.STEP_ORDER.includes(s)) throw new Error('No such step: ' + s + '. Steps: ' + core.STEP_ORDER.join(', '));
++  const legacy = wanted.filter((s) => core.LEGACY_STEPS.includes(s));
++  const rest = wanted.filter((s) => !core.LEGACY_STEPS.includes(s));
++
++  const dir = join(OUT, core.exportName(Date.now()));
++  mkdirSync(dir, { recursive: true });
++  const sink = folderSink(core, dir, JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version);
++
++  const page = await openBrowser({ startUrl: START, keep: KEEP });
++  await sleep(2000);
++  await signIn(page);
++  let session = await sessionOf(page, core);
++  if (!session) throw new Error('Signed in, but no session token on the page.');
++
++  const startedAt = new Date().toISOString();
++  let lastDetail = '';
++  const deps = {
++    transport: pageTransport(page),
++    sink,
++    html: core.domHtmlParser(await htmlParser()),
++    clock: { now: () => Date.now(), sleep },
++    progress: (ev) => {
++      if (ev.detail && ev.detail !== lastDetail) {
++        lastDetail = ev.detail;
++        process.stdout.write('  ' + ev.detail + (ev.items ? ' (' + ev.items.total + ')' : '') + '\n');
++      }
++    },
++  };
++  const c = new core.Collector(deps, session);
++  const ctx = core.newCtx();
++  const alive = setInterval(() => page.probe(ACTIVITY_IN_PAGE, undefined), ALIVE_MS);
++
++  const run = async (name) => {
++    const t = Date.now();
++    const before = sink.problems.length;
++    console.log(name);
++    await core.runStep(c, ctx, name);
++    const filed = sink.problems.length - before;
++    console.log(`  done in ${((Date.now() - t) / 1000).toFixed(1)} s` + (filed ? `, ${filed} problem${filed > 1 ? 's' : ''}` : ''));
++  };
++  try {
++    if (legacy.length) {
++      // The legacy services answer only after a /online/ page has loaded in the session, and the requests go from it.
++      await goTo(page, core.SUMMARY_PAGE, /^\/online\//i);
++      for (const name of legacy) await run(name);
++      await goTo(page, START, /^\/sonline\//i);
++      session = (await sessionOf(page, core)) || session;
++      c.session = session;
++    }
++    for (const name of rest) await run(name);
++  } catch (e) {
++    if (e && e.sessionEnded) console.error(e.message);
++    else throw e;
++    process.exitCode = 1;
++  } finally {
++    clearInterval(alive);
++  }
++
++  const { files, errors } = sink.writeRootFiles(startedAt);
++  const width = Math.max(0, ...Object.keys(files).map((k) => k.length));
++  for (const [folder, n] of Object.entries(files).sort()) console.log(`  ${folder.padEnd(width)}  ${String(n).padStart(4)} files`);
++  for (const p of sink.problems) console.log('  problem: ' + p.where + ': ' + p.what);
++  console.log(`${errors.length ? errors.length + ' problems; ' : ''}export in ${dir}`);
++}
++
++/** happy-dom's DOMParser, for the two legacy HTML tables; a dev dependency, so only loaded when a legacy step runs. */
++async function htmlParser() {
++  try {
++    const { Window } = await import('happy-dom');
++    return new Window().DOMParser;
++  } catch {
++    return class {
++      parseFromString() {
++        throw new Error('happy-dom is not installed (npm install), which the legacy steps need to parse HTML');
++      }
++    };
++  }
++}
++
++// Exiting kills the browser (see openBrowser), unless --keep asked for it to stay.
++main().then(
++  () => process.exit(),
++  (e) => {
++    console.error(e.message);
++    process.exit(1);
++  },
++);
+diff --git a/scripts/headless-lib.d.mts b/scripts/headless-lib.d.mts
+new file mode 100644
+index 0000000..95ad77e
+--- /dev/null
++++ b/scripts/headless-lib.d.mts
+@@ -0,0 +1,28 @@
++// Types of headless-lib.mjs for the test that imports it; the script itself is plain JavaScript.
++import type { HttpRequest, HttpResponse, Problem, Session, Sink } from '../src/core';
++
++export const STALL_MS: number;
++export const MAX_BYTES: number;
++export const FETCH_IN_PAGE: string;
++export const XHR_IN_PAGE: string;
++export const ACTIVITY_IN_PAGE: string;
++export const SNAPSHOT: string;
++
++export interface Page {
++  evaluate(expression: string): Promise<unknown>;
++  probe(expression: string, fallback: unknown): Promise<unknown>;
++}
++
++export function pageTransport(page: Page): {
++  fetch(req: HttpRequest): Promise<HttpResponse>;
++  xhr(req: HttpRequest): Promise<{ status: number; text: string }>;
++  pagePath(): Promise<string>;
++};
++
++export function sessionOf(page: Page, core: unknown, tries?: number): Promise<Session | null>;
++
++export interface FolderSink extends Sink {
++  problems: Problem[];
++  writeRootFiles(startedAt: string): { files: Record<string, number>; errors: unknown[] };
++}
++export function folderSink(core: unknown, dir: string, version: string): FolderSink;
+diff --git a/scripts/headless-lib.mjs b/scripts/headless-lib.mjs
+new file mode 100644
+index 0000000..8caef96
+--- /dev/null
++++ b/scripts/headless-lib.mjs
+@@ -0,0 +1,189 @@
++// The two seams scripts/headless-export.mjs puts under the collector (src/core/): the Maccabi Online
++// page as its Transport, and a folder as its Sink. Kept apart from the script so the tests can run them
++// without a browser. `core` is the bundled src/cli/index.ts (or, in the tests, the sources themselves).
++import { createHash } from 'node:crypto';
++import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
++import { dirname, join } from 'node:path';
++
++const ORIGIN = 'https://online.maccabi4u.co.il';
++
++// A value written into code that a page evaluates (as in maccabi-browser.mjs).
++const UNSAFE = { '<': '\\u003C', '>': '\\u003E', '/': '\\u002F', '\u2028': '\\u2028', '\u2029': '\\u2029' };
++const lit = (value) => JSON.stringify(value).replace(/[<>/\u2028\u2029]/g, (c) => UNSAFE[c]);
++
++/** Seconds without a byte after which a request is given up, and the largest body brought back (as in the extension). */
++export const STALL_MS = 60_000;
++export const MAX_BYTES = 32 * 1024 * 1024;
++
++// ---- the page as a Transport ------------------------------------------------------------------
++
++/** Runs in the page: fetchInPage from src/extension/background/tab.ts, as source for Runtime.evaluate. */
++export const FETCH_IN_PAGE = `async (req, stallMs, maxBytes) => {
++  const abort = new AbortController();
++  let timer;
++  const alive = () => { clearTimeout(timer); timer = setTimeout(() => abort.abort(), stallMs); };
++  try {
++    alive();
++    const r = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body, credentials: 'include', redirect: req.redirect || 'follow', signal: abort.signal });
++    const head = { ok: true, status: r.status, redirected: r.type === 'opaqueredirect', contentType: r.headers.get('content-type') || '', retryAfter: r.headers.get('retry-after') || undefined, url: r.url };
++    if (Number(r.headers.get('content-length')) > maxBytes) { abort.abort(); return { ...head, tooLarge: true }; }
++    const parts = [];
++    let length = 0;
++    if (r.body) {
++      const reader = r.body.getReader();
++      for (;;) {
++        alive();
++        const { done, value } = await reader.read();
++        if (done) break;
++        length += value.length;
++        if (length > maxBytes) { abort.abort(); return { ...head, tooLarge: true }; }
++        parts.push(value);
++      }
++    }
++    const buf = new Uint8Array(length);
++    let at = 0;
++    for (const p of parts) { buf.set(p, at); at += p.length; }
++    let bin = '';
++    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)));
++    return { ...head, b64: btoa(bin) };
++  } catch (e) {
++    return { ok: false, error: abort.signal.aborted ? 'Maccabi Healthcare Services sent nothing for ' + stallMs / 1000 + ' s' : (e && e.message) || String(e) };
++  } finally {
++    clearTimeout(timer);
++  }
++}`;
++
++/** Runs in the page: xhrInPage from tab.ts. Never rejects: status 0 on error. */
++export const XHR_IN_PAGE = `(req) => new Promise((resolve) => {
++  const x = new XMLHttpRequest();
++  x.open(req.method, req.url, true);
++  const h = req.headers || {};
++  for (const k in h) x.setRequestHeader(k, h[k]);
++  x.onload = () => resolve({ status: x.status, text: x.responseText });
++  x.onerror = () => resolve({ status: 0, text: '' });
++  x.send(req.body);
++})`;
++
++/** Runs in the page: activityInPage from tab.ts, the click the site's idle timers listen for. */
++export const ACTIVITY_IN_PAGE = `(() => {
++  document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
++  if (typeof resetActive !== 'function') return;
++  const counting = window.countDownStarted === true;
++  if (counting) window.countDownStarted = false;
++  resetActive();
++  if (counting && typeof closedialog === 'function') closedialog();
++})()`;
++
++export const SNAPSHOT = `({ host: location.hostname, path: location.pathname,
++  cookieMid: (document.cookie.match(/cookie_sessionId_0_(\\d+)/) || [])[1] || null,
++  jwt: sessionStorage.getItem('token') })`;
++
++export function pageTransport(page) {
++  return {
++    async fetch(req) {
++      const url = new URL(req.url, ORIGIN).toString();
++      const r = await page.evaluate(`(${FETCH_IN_PAGE})(${lit({ ...req, url })}, ${STALL_MS}, ${MAX_BYTES})`);
++      if (!r.ok) throw new Error(r.error);
++      const { b64, ...head } = r;
++      return { ...head, bytes: b64 ? new Uint8Array(Buffer.from(b64, 'base64')) : new Uint8Array() };
++    },
++    xhr(req) {
++      return page.evaluate(`(${XHR_IN_PAGE})(${lit({ ...req, url: new URL(req.url, ORIGIN).toString() })})`);
++    },
++    pagePath: () => page.evaluate('location.pathname'),
++  };
++}
++
++/** The member's session as the page holds it (token and member id), or null when nobody is signed in. */
++export async function sessionOf(page, core, tries = 30) {
++  for (let i = 0; i < tries; i++) {
++    const s = await page.probe(SNAPSHOT, null);
++    if (s && s.host === new URL(ORIGIN).hostname && s.jwt) {
++      const { mid, gender } = core.sessionFrom(s.cookieMid, s.jwt);
++      if (mid) return { mid, jwt: s.jwt, gender };
++    }
++    await new Promise((r) => setTimeout(r, 500));
++  }
++  return null;
++}
++
++// ---- a folder as a Sink -------------------------------------------------------------------------
++
++/** The export folder, with the extension's write rules: JSON rewritten only when changed, documents kept. */
++export function folderSink(core, dir, version) {
++  const shas = new Map(); // sha256 -> rel, of the documents already in the folder
++  const aliases = new Map();
++  const problems = [];
++  const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
++  const walk = (d, rel = '') => {
++    for (const name of existsSync(d) ? readdirSync(d) : []) {
++      const full = join(d, name);
++      const r = rel ? rel + '/' + name : name;
++      if (statSync(full).isDirectory()) walk(full, r);
++      else if (!r.endsWith('.json') && !r.endsWith('.md')) shas.set(sha(readFileSync(full)), r);
++    }
++  };
++  walk(dir);
++  const read = (rel) => (existsSync(join(dir, rel)) ? new Uint8Array(readFileSync(join(dir, rel))) : undefined);
++  const write = (rel, bytes) => {
++    mkdirSync(dirname(join(dir, rel)), { recursive: true });
++    writeFileSync(join(dir, rel), bytes);
++  };
++  return {
++    problems,
++    async exists(rel) {
++      return existsSync(join(dir, rel));
++    },
++    async putJson(rel, obj) {
++      const bad = core.badPath(rel);
++      if (bad) return { error: bad };
++      const result = core.jsonResult(read(rel), obj);
++      if (result !== 'unchanged') write(rel, core.jsonBytes(obj));
++      return { result };
++    },
++    async putBin(rel, bytes, replace) {
++      const bad = core.badPath(rel);
++      if (bad) return { error: bad };
++      const result = core.binResult(read(rel), bytes, replace);
++      if (result === 'written' || result === 'updated') {
++        for (const [s, at] of shas) if (at === rel) shas.delete(s);
++        write(rel, bytes);
++        shas.set(sha(bytes), rel);
++      }
++      return { result };
++    },
++    async findBySha256(s) {
++      return shas.get(s) ?? null;
++    },
++    async putAlias(rel, existing) {
++      aliases.set(rel, existing);
++    },
++    async aliasOf(rel) {
++      return aliases.get(rel) ?? null;
++    },
++    async problem(p) {
++      problems.push(p);
++    },
++    /** The root files the extension's save step writes, from what the folder holds. */
++    writeRootFiles(startedAt) {
++      const files = {};
++      let medicalFile = null;
++      const count = (d, rel = '') => {
++        for (const name of readdirSync(d)) {
++          const full = join(d, name);
++          const r = rel ? rel + '/' + name : name;
++          if (statSync(full).isDirectory()) count(full, r);
++          else if (r.includes('/')) files[r.split('/')[0]] = (files[r.split('/')[0]] || 0) + 1;
++          else if (r.endsWith('_medical-file.pdf') && (!medicalFile || r > medicalFile)) medicalFile = r;
++        }
++      };
++      count(dir);
++      const errors = core.exportErrors(problems);
++      write(core.EXPORT_ERRORS, Buffer.from(JSON.stringify(errors, null, 2) + '\n'));
++      const made = { version: version + ' (headless-export)', layout: core.FILE_LAYOUT, startedAt, dev: false };
++      write('README.md', Buffer.from(core.exportReadme(core.israelToday(Date.now()), files, medicalFile, errors, made)));
++      for (const [name, text] of Object.entries(core.INSTRUCTION_POINTERS)) write(name, Buffer.from(text));
++      return { files, errors };
++    },
++  };
++}
+diff --git a/scripts/live-run.mjs b/scripts/live-run.mjs
+index 3e997ca..9ad1201 100644
+--- a/scripts/live-run.mjs
++++ b/scripts/live-run.mjs
+@@ -31,26 +31,14 @@
+ // Nothing here prints a credential or a record: what it reports is what the dev bridge replies with,
+ // statuses, counts and problem lines. The password is filled once per run and never re-submitted,
+ // because a script retrying a wrong password is how an account gets locked.
+-import { execFileSync, spawn } from 'node:child_process';
+-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+-import { homedir } from 'node:os';
++import { mkdirSync, writeFileSync } from 'node:fs';
+ import { join } from 'node:path';
+ import { createInterface } from 'node:readline/promises';
+-import { BROWSERS, isFile, root, sleep } from './stage.mjs';
++import { ORIGIN, START, lit, openBrowser as openPlainBrowser, signIn } from './maccabi-browser.mjs';
++import { root, sleep } from './stage.mjs';
+ 
+-if (existsSync(join(root, '.env'))) process.loadEnvFile(join(root, '.env'));
+-
+-const ORIGIN = 'https://online.maccabi4u.co.il';
+-const START = ORIGIN + '/sonline/';
+ const EXTENSION = join(root, 'dist-dev');
+-const PROFILE = process.env.LIVE_PROFILE || join(homedir(), '.hrem-live-profile');
+-
+-// A value written into code that a page evaluates: JSON, with the characters escaped that JSON leaves
+-// alone and JavaScript or an HTML parser would read as something else.
+-const UNSAFE = { '<': '\\u003C', '>': '\\u003E', '/': '\\u002F', '\u2028': '\\u2028', '\u2029': '\\u2029' };
+-const lit = (value) => JSON.stringify(value).replace(/[<>/\u2028\u2029]/g, (c) => UNSAFE[c]);
+ 
+-const ITEM = process.env.MACCABI_OP_ITEM || 'Maccabi';
+ const KEEP = process.argv.includes('--keep');
+ const ROOT_FILES = process.argv.includes('--root-files');
+ const NAMES = process.argv.includes('--names');
+@@ -60,141 +48,14 @@ const SHOTS = process.argv.includes('--screenshots')
+   ? join(root, '.cache', 'live-screenshots', new Date().toISOString().slice(0, 19).replace(/:/g, '-'))
+   : null;
+ 
+-const SIGN_IN_WAIT_MS = 3 * 60_000;
+ const POLL_MS = 5000;
+ 
+-const NO_OP = 'The 1Password CLI (op) is not installed: brew install 1password-cli, then turn on '
+-  + '"Integrate with 1Password CLI" in the 1Password app (Settings > Developer).';
+-
+-/** A secret reference's value; anything else is taken as the value itself (as `op run` passes it). */
+-function resolve(name) {
+-  const value = process.env[name];
+-  if (!value.startsWith('op://')) return value;
+-  try {
+-    return execFileSync('op', ['read', '--no-newline', value], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] });
+-  } catch (e) {
+-    if (e.code === 'ENOENT') throw new Error(NO_OP);
+-    throw new Error(`op could not read ${name} (${value}).`);
+-  }
+-}
+-
+-/** Username and password, from the references in .env or the 1Password item, read only when the page asks for them. */
+-function credentials() {
+-  if (process.env.MACCABI_USERNAME && process.env.MACCABI_PASSWORD) {
+-    return { username: resolve('MACCABI_USERNAME'), password: resolve('MACCABI_PASSWORD') };
+-  }
+-  let out;
+-  try {
+-    out = execFileSync('op', ['item', 'get', ITEM, '--format', 'json', '--reveal'], {
+-      encoding: 'utf8',
+-      stdio: ['inherit', 'pipe', 'inherit'],
+-    });
+-  } catch (e) {
+-    if (e.code === 'ENOENT') throw new Error(NO_OP);
+-    throw new Error(`op could not read the 1Password item "${ITEM}"; set MACCABI_USERNAME and MACCABI_PASSWORD in .env, or MACCABI_OP_ITEM.`);
+-  }
+-  const fields = JSON.parse(out).fields || [];
+-  const username = fields.find((f) => f.purpose === 'USERNAME')?.value;
+-  const password = fields.find((f) => f.purpose === 'PASSWORD')?.value;
+-  if (!username || !password) throw new Error(`The 1Password item "${ITEM}" has no username or no password.`);
+-  return { username, password };
+-}
+-
+ async function openBrowser() {
+-  const exe = BROWSERS.find(isFile);
+-  if (!exe) throw new Error('No Chrome, Chromium or Edge found; set CHROME_PATH.');
+-  mkdirSync(PROFILE, { recursive: true });
+-  const browser = spawn(exe, [
+-    '--remote-debugging-port=0',
+-    '--user-data-dir=' + PROFILE,
+-    '--no-first-run',
+-    '--no-default-browser-check',
+-    // Branded Chrome ignores this flag; the profile then keeps an extension loaded by hand instead.
+-    '--load-extension=' + EXTENSION,
+-    START,
+-  ]);
+-  process.once('exit', () => { if (!KEEP) browser.kill(); });
+-
+-  const wsUrl = await new Promise((resolveUrl, reject) => {
+-    let log = '';
+-    const timer = setTimeout(() => reject(new Error('The browser did not start. Is a window on '
+-      + PROFILE + ' already open? Close it and run again.\n' + log)), 30_000);
+-    browser.stderr.on('data', (d) => {
+-      log += d;
+-      const m = log.match(/DevTools listening on (ws:\/\/\S+)/);
+-      if (m) {
+-        clearTimeout(timer);
+-        resolveUrl(m[1]);
+-      }
+-    });
+-  });
+-
+-  // A minimal DevTools Protocol client, as in stage.mjs.
+-  const ws = new WebSocket(wsUrl);
+-  await new Promise((r, j) => {
+-    ws.onopen = r;
+-    ws.onerror = j;
+-  });
+-  let lastId = 0;
+-  const pending = new Map();
+-  ws.onmessage = (e) => {
+-    const m = JSON.parse(e.data);
+-    const p = m.id && pending.get(m.id);
+-    if (!p) return;
+-    pending.delete(m.id);
+-    if (m.error) p.reject(new Error(m.error.message));
+-    else p.resolve(m.result);
+-  };
+-  const send = (method, params = {}, sessionId) => {
+-    const id = ++lastId;
+-    ws.send(JSON.stringify({ id, method, params, sessionId }));
+-    return new Promise((res, rej) => {
+-      const timer = setTimeout(() => {
+-        pending.delete(id);
+-        rej(new Error(method + ': no reply in 30s'));
+-      }, 30_000);
+-      pending.set(id, {
+-        resolve: (v) => { clearTimeout(timer); res(v); },
+-        reject: (e) => { clearTimeout(timer); rej(e); },
+-      });
+-    });
+-  };
+-
+-  let target;
+-  for (let i = 0; !target; i++) {
+-    const { targetInfos } = await send('Target.getTargets');
+-    target = targetInfos.find((t) => t.type === 'page' && t.url.startsWith('https://'))
+-      || (i > 20 && targetInfos.find((t) => t.type === 'page'));
+-    if (!target) await sleep(500);
+-  }
+-  const target0 = target;
+-  const { sessionId } = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true });
+-
+-  const page = {
+-    /** Evaluates in the page. A page that navigates mid-call throws; callers poll, so they retry. */
+-    async evaluate(expression) {
+-      const { result, exceptionDetails } = await send(
+-        'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);
+-      if (exceptionDetails) throw new Error(exceptionDetails.exception?.description || exceptionDetails.text);
+-      return result.value;
+-    },
+-    /** Like evaluate, but a page between documents answers `fallback` instead of throwing. */
+-    async probe(expression, fallback) {
+-      try {
+-        return await page.evaluate(expression);
+-      } catch {
+-        return fallback;
+-      }
+-    },
+-    navigate: (url) => send('Page.navigate', { url }, sessionId),
+-    insertText: (text) => send('Input.insertText', { text }, sessionId),
+-    async pressEnter() {
+-      const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 };
+-      await send('Input.dispatchKeyEvent', { type: 'keyDown', text: '\r', ...key }, sessionId);
+-      await send('Input.dispatchKeyEvent', { type: 'keyUp', ...key }, sessionId);
+-    },
+-    /** A dev bridge command; undefined when nothing answered, which is what a missing extension looks like. */
+-    dev: (msg, timeoutMs = 5000) => page.probe(`new Promise((ok) => {
++  const page = await openPlainBrowser({ startUrl: START, extension: EXTENSION, keep: KEEP });
++  const { send, sessionId, targetId } = page;
++  const target0 = { targetId };
++  /** A dev bridge command; undefined when nothing answered, which is what a missing extension looks like. */
++  page.dev = (msg, timeoutMs = 5000) => page.probe(`new Promise((ok) => {
+       const id = Math.random();
+       const timer = setTimeout(() => { removeEventListener('message', f); ok(undefined); }, ${timeoutMs});
+       function f(e) {
+@@ -205,8 +66,7 @@ async function openBrowser() {
+       }
+       addEventListener('message', f);
+       postMessage({ __hremDev: 'req', id, msg: ${lit(msg)} }, '*');
+-    })`, undefined),
+-  };
++    })`, undefined);
+ 
+   /**
+    * The real popup, opened from the toolbar with chrome.action.openPopup() and photographed as Chrome draws
+@@ -267,101 +127,6 @@ async function shoot(page, label) {
+   }
+ }
+ 
+-// Maccabi's sign-in (mac.maccabi4u.co.il/login) takes three pages: the ID number and המשך
+-// ("continue"); a choice of SMS code, voice-call code or כניסה עם סיסמה ("sign in with password");
+-// then the ID and password and המשך again, which lands on /sonline/. Fields are found by shape and
+-// buttons by their text, in the page and inside any shadow root, since the first pages are drawn in one.
+-const CONTINUE = 'המשך';
+-const WITH_PASSWORD = 'כניסה עם סיסמה';
+-const HELPERS = `
+-  const all = (sel, root = document) => {
+-    const out = [...root.querySelectorAll(sel)];
+-    for (const e of root.querySelectorAll('*')) if (e.shadowRoot) out.push(...all(sel, e.shadowRoot));
+-    return out;
+-  };
+-  const shown = (e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+-  const textFields = () => all('input').filter((e) => shown(e) && ['text', 'email', 'tel', 'number', ''].includes(e.type));
+-  const passwordField = () => all('input[type=password]').find(shown);
+-  const byText = (text) => all('a, button, [role=button]').find((e) => shown(e) && e.textContent.trim() === text);
+-  const focus = (e) => { if (!e) return false; e.focus(); e.select?.(); return true; };
+-`;
+-const inPage = (body) => `(() => {${HELPERS}${body}})()`;
+-
+-/** Which of the three sign-in pages the tab is on, or 'signedIn', or 'other' (between pages). */
+-const STAGE = inPage(`
+-  if (location.origin === ${lit(ORIGIN)} && sessionStorage.getItem('token')) return 'signedIn';
+-  if (passwordField()) return 'password';
+-  if (byText(${lit(WITH_PASSWORD)})) return 'choose';
+-  if (location.host === 'mac.maccabi4u.co.il' && textFields().length) return 'id';
+-  return 'other';
+-`);
+-const FOCUS_ID = inPage(`return focus(textFields()[0]);`);
+-// On the password page, the ID field is the text field before the password; it is usually filled already.
+-const ID_BEFORE_PASSWORD_EMPTY = inPage(`
+-  const p = passwordField();
+-  const u = textFields().filter((e) => e.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING).at(-1);
+-  if (!u || u.value) return false;
+-  return focus(u);
+-`);
+-const FOCUS_PASSWORD = inPage(`return focus(passwordField());`);
+-const clickText = (text) => inPage(`const b = byText(${lit(text)}); if (!b) return false; b.click(); return true;`);
+-const PAGE_SHAPE = inPage(`
+-  const inputs = {};
+-  for (const e of all('input')) {
+-    const k = (e.type || 'text') + (shown(e) ? '' : ' (hidden)');
+-    inputs[k] = (inputs[k] || 0) + 1;
+-  }
+-  const frames = all('iframe').map((f) => { try { return new URL(f.src).host; } catch { return '(no src)'; } });
+-  return { at: location.host + location.pathname, inputs, frames };
+-`);
+-
+-async function signIn(page) {
+-  const until = Date.now() + SIGN_IN_WAIT_MS;
+-  let creds;
+-  const done = new Set(); // each page is answered once: nothing is submitted twice
+-  let hinted = false;
+-  let redirected = false;
+-  let lastChange = Date.now();
+-  while (Date.now() < until) {
+-    const stage = await page.probe(STAGE, 'other');
+-    if (stage === 'signedIn') return;
+-    if (stage !== 'other' && !done.has(stage)) {
+-      creds ||= credentials();
+-      if (stage === 'id') {
+-        if (!(await page.probe(FOCUS_ID, false))) throw new Error('Found the ID page but could not focus its field.');
+-        await page.insertText(creds.username);
+-        if (!(await page.probe(clickText(CONTINUE), false))) await page.pressEnter();
+-        console.log('Sign-in: entered the ID number.');
+-      } else if (stage === 'choose') {
+-        await page.probe(clickText(WITH_PASSWORD), false);
+-        console.log('Sign-in: chose to sign in with a password.');
+-      } else if (stage === 'password') {
+-        if (await page.probe(ID_BEFORE_PASSWORD_EMPTY, false)) await page.insertText(creds.username);
+-        await page.probe(FOCUS_PASSWORD, false);
+-        await page.insertText(creds.password);
+-        if (!(await page.probe(clickText(CONTINUE), false))) await page.pressEnter();
+-        console.log('Sign-in: entered the password; waiting for the site.');
+-      }
+-      done.add(stage);
+-      lastChange = Date.now();
+-    } else if (done.has('password') && !redirected && (await page.probe('location.origin', '')) === ORIGIN) {
+-      // Signed in, but landed on a page without the token (the legacy site): the token is issued on /sonline/.
+-      await sleep(POLL_MS);
+-      if ((await page.probe(STAGE, 'other')) !== 'signedIn') {
+-        await page.navigate(START);
+-        redirected = true;
+-      }
+-    } else if (!hinted && Date.now() - lastChange > 20_000) {
+-      console.log('Sign-in is not moving. If the site asks for anything more, answer it in the browser window; '
+-        + 'nothing already entered is submitted again.');
+-      // Shape only: the address without its query, counts of inputs, and the hosts of frames.
+-      console.log('  page: ' + JSON.stringify(await page.probe(PAGE_SHAPE, null)));
+-      hinted = true;
+-    }
+-    await sleep(1000);
+-  }
+-  throw new Error('Not signed in after ' + SIGN_IN_WAIT_MS / 60_000 + ' minutes.');
+-}
+ 
+ async function ensureExtension(page) {
+   while (!(await page.dev({ type: 'dev:state' }))) {
+diff --git a/scripts/maccabi-browser.mjs b/scripts/maccabi-browser.mjs
+new file mode 100644
+index 0000000..2d88164
+--- /dev/null
++++ b/scripts/maccabi-browser.mjs
+@@ -0,0 +1,270 @@
++// The browser side shared by the terminal scripts that run against a member's own account:
++// scripts/live-run.mjs (an export through the development build) and scripts/headless-export.mjs
++// (an export with no extension at all). A real Chrome, Chromium or Edge (CHROME_PATH picks one) with a
++// profile kept outside the repo (LIVE_PROFILE, default ~/.hrem-live-profile), driven over the DevTools
++// Protocol with nothing but Node's own WebSocket; and Maccabi's three-page sign-in, with the username and
++// password from 1Password secret references in .env (MACCABI_USERNAME, MACCABI_PASSWORD) or the item
++// MACCABI_OP_ITEM names (default "Maccabi"), read only when a page asks for them and submitted once.
++//
++// Nothing here prints a credential: what the sign-in logs is which page it answered.
++import { execFileSync, spawn } from 'node:child_process';
++import { existsSync, mkdirSync } from 'node:fs';
++import { homedir } from 'node:os';
++import { join } from 'node:path';
++import { BROWSERS, isFile, root, sleep } from './stage.mjs';
++
++if (existsSync(join(root, '.env'))) process.loadEnvFile(join(root, '.env'));
++
++export const ORIGIN = 'https://online.maccabi4u.co.il';
++export const START = ORIGIN + '/sonline/';
++export const PROFILE = process.env.LIVE_PROFILE || join(homedir(), '.hrem-live-profile');
++
++// A value written into code that a page evaluates: JSON, with the characters escaped that JSON leaves
++// alone and JavaScript or an HTML parser would read as something else.
++const UNSAFE = { '<': '\\u003C', '>': '\\u003E', '/': '\\u002F', '\u2028': '\\u2028', '\u2029': '\\u2029' };
++export const lit = (value) => JSON.stringify(value).replace(/[<>/\u2028\u2029]/g, (c) => UNSAFE[c]);
++
++const ITEM = process.env.MACCABI_OP_ITEM || 'Maccabi';
++const SIGN_IN_WAIT_MS = 3 * 60_000;
++const POLL_MS = 5000;
++
++const NO_OP = 'The 1Password CLI (op) is not installed: brew install 1password-cli, then turn on '
++  + '"Integrate with 1Password CLI" in the 1Password app (Settings > Developer).';
++
++/** A secret reference's value; anything else is taken as the value itself (as `op run` passes it). */
++function resolve(name) {
++  const value = process.env[name];
++  if (!value.startsWith('op://')) return value;
++  try {
++    return execFileSync('op', ['read', '--no-newline', value], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] });
++  } catch (e) {
++    if (e.code === 'ENOENT') throw new Error(NO_OP);
++    throw new Error(`op could not read ${name} (${value}).`);
++  }
++}
++
++/** Username and password, from the references in .env or the 1Password item, read only when the page asks for them. */
++export function credentials() {
++  if (process.env.MACCABI_USERNAME && process.env.MACCABI_PASSWORD) {
++    return { username: resolve('MACCABI_USERNAME'), password: resolve('MACCABI_PASSWORD') };
++  }
++  let out;
++  try {
++    out = execFileSync('op', ['item', 'get', ITEM, '--format', 'json', '--reveal'], {
++      encoding: 'utf8',
++      stdio: ['inherit', 'pipe', 'inherit'],
++    });
++  } catch (e) {
++    if (e.code === 'ENOENT') throw new Error(NO_OP);
++    throw new Error(`op could not read the 1Password item "${ITEM}"; set MACCABI_USERNAME and MACCABI_PASSWORD in .env, or MACCABI_OP_ITEM.`);
++  }
++  const fields = JSON.parse(out).fields || [];
++  const username = fields.find((f) => f.purpose === 'USERNAME')?.value;
++  const password = fields.find((f) => f.purpose === 'PASSWORD')?.value;
++  if (!username || !password) throw new Error(`The 1Password item "${ITEM}" has no username or no password.`);
++  return { username, password };
++}
++
++/**
++ * Opens the browser on `startUrl` and attaches to its page. `extension` is a folder to load unpacked
++ * (branded Chrome ignores the flag; the profile then keeps one loaded by hand). `keep` leaves the
++ * browser open when the process exits; otherwise it is killed. Returns the page (evaluate, probe,
++ * navigate, insertText, pressEnter) with the raw protocol `send`, its `sessionId` and `targetId`,
++ * for what the page object does not cover.
++ */
++export async function openBrowser({ startUrl = START, extension = null, keep = false } = {}) {
++  const exe = BROWSERS.find(isFile);
++  if (!exe) throw new Error('No Chrome, Chromium or Edge found; set CHROME_PATH.');
++  mkdirSync(PROFILE, { recursive: true });
++  const browser = spawn(exe, [
++    '--remote-debugging-port=0',
++    '--user-data-dir=' + PROFILE,
++    '--no-first-run',
++    '--no-default-browser-check',
++    // Branded Chrome ignores this flag; the profile then keeps an extension loaded by hand instead.
++    ...(extension ? ['--load-extension=' + extension] : []),
++    startUrl,
++  ]);
++  process.once('exit', () => { if (!keep) browser.kill(); });
++
++  const wsUrl = await new Promise((resolveUrl, reject) => {
++    let log = '';
++    const timer = setTimeout(() => reject(new Error('The browser did not start. Is a window on '
++      + PROFILE + ' already open? Close it and run again.\n' + log)), 30_000);
++    browser.stderr.on('data', (d) => {
++      log += d;
++      const m = log.match(/DevTools listening on (ws:\/\/\S+)/);
++      if (m) {
++        clearTimeout(timer);
++        resolveUrl(m[1]);
++      }
++    });
++  });
++
++  // A minimal DevTools Protocol client, as in stage.mjs.
++  const ws = new WebSocket(wsUrl);
++  await new Promise((r, j) => {
++    ws.onopen = r;
++    ws.onerror = j;
++  });
++  let lastId = 0;
++  const pending = new Map();
++  ws.onmessage = (e) => {
++    const m = JSON.parse(e.data);
++    const p = m.id && pending.get(m.id);
++    if (!p) return;
++    pending.delete(m.id);
++    if (m.error) p.reject(new Error(m.error.message));
++    else p.resolve(m.result);
++  };
++  const send = (method, params = {}, sessionId) => {
++    const id = ++lastId;
++    ws.send(JSON.stringify({ id, method, params, sessionId }));
++    return new Promise((res, rej) => {
++      const timer = setTimeout(() => {
++        pending.delete(id);
++        rej(new Error(method + ': no reply in 30s'));
++      }, 30_000);
++      pending.set(id, {
++        resolve: (v) => { clearTimeout(timer); res(v); },
++        reject: (e) => { clearTimeout(timer); rej(e); },
++      });
++    });
++  };
++
++  let target;
++  for (let i = 0; !target; i++) {
++    const { targetInfos } = await send('Target.getTargets');
++    target = targetInfos.find((t) => t.type === 'page' && t.url.startsWith('https://'))
++      || (i > 20 && targetInfos.find((t) => t.type === 'page'));
++    if (!target) await sleep(500);
++  }
++  const target0 = target;
++  const { sessionId } = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true });
++
++  const page = {
++    /** Evaluates in the page. A page that navigates mid-call throws; callers poll, so they retry. */
++    async evaluate(expression) {
++      const { result, exceptionDetails } = await send(
++        'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);
++      if (exceptionDetails) throw new Error(exceptionDetails.exception?.description || exceptionDetails.text);
++      return result.value;
++    },
++    /** Like evaluate, but a page between documents answers `fallback` instead of throwing. */
++    async probe(expression, fallback) {
++      try {
++        return await page.evaluate(expression);
++      } catch {
++        return fallback;
++      }
++    },
++    navigate: (url) => send('Page.navigate', { url }, sessionId),
++    insertText: (text) => send('Input.insertText', { text }, sessionId),
++    async pressEnter() {
++      const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 };
++      await send('Input.dispatchKeyEvent', { type: 'keyDown', text: '\r', ...key }, sessionId);
++      await send('Input.dispatchKeyEvent', { type: 'keyUp', ...key }, sessionId);
++    },
++    send,
++    sessionId,
++    targetId: target0.targetId,
++  };
++  return page;
++}
++
++// Maccabi's sign-in (mac.maccabi4u.co.il/login) takes three pages: the ID number and המשך
++// ("continue"); a choice of SMS code, voice-call code or כניסה עם סיסמה ("sign in with password");
++// then the ID and password and המשך again, which lands on /sonline/. Fields are found by shape and
++// buttons by their text, in the page and inside any shadow root, since the first pages are drawn in one.
++const CONTINUE = 'המשך';
++const WITH_PASSWORD = 'כניסה עם סיסמה';
++const HELPERS = `
++  const all = (sel, root = document) => {
++    const out = [...root.querySelectorAll(sel)];
++    for (const e of root.querySelectorAll('*')) if (e.shadowRoot) out.push(...all(sel, e.shadowRoot));
++    return out;
++  };
++  const shown = (e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
++  const textFields = () => all('input').filter((e) => shown(e) && ['text', 'email', 'tel', 'number', ''].includes(e.type));
++  const passwordField = () => all('input[type=password]').find(shown);
++  const byText = (text) => all('a, button, [role=button]').find((e) => shown(e) && e.textContent.trim() === text);
++  const focus = (e) => { if (!e) return false; e.focus(); e.select?.(); return true; };
++`;
++const inPage = (body) => `(() => {${HELPERS}${body}})()`;
++
++/** Which of the three sign-in pages the tab is on, or 'signedIn', or 'other' (between pages). */
++const STAGE = inPage(`
++  if (location.origin === ${lit(ORIGIN)} && sessionStorage.getItem('token')) return 'signedIn';
++  if (passwordField()) return 'password';
++  if (byText(${lit(WITH_PASSWORD)})) return 'choose';
++  if (location.host === 'mac.maccabi4u.co.il' && textFields().length) return 'id';
++  return 'other';
++`);
++const FOCUS_ID = inPage(`return focus(textFields()[0]);`);
++// On the password page, the ID field is the text field before the password; it is usually filled already.
++const ID_BEFORE_PASSWORD_EMPTY = inPage(`
++  const p = passwordField();
++  const u = textFields().filter((e) => e.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING).at(-1);
++  if (!u || u.value) return false;
++  return focus(u);
++`);
++const FOCUS_PASSWORD = inPage(`return focus(passwordField());`);
++const clickText = (text) => inPage(`const b = byText(${lit(text)}); if (!b) return false; b.click(); return true;`);
++const PAGE_SHAPE = inPage(`
++  const inputs = {};
++  for (const e of all('input')) {
++    const k = (e.type || 'text') + (shown(e) ? '' : ' (hidden)');
++    inputs[k] = (inputs[k] || 0) + 1;
++  }
++  const frames = all('iframe').map((f) => { try { return new URL(f.src).host; } catch { return '(no src)'; } });
++  return { at: location.host + location.pathname, inputs, frames };
++`);
++
++/** Signs in if the page asks for it; returns when the page is on /sonline/ with a token. */
++export async function signIn(page) {
++  const until = Date.now() + SIGN_IN_WAIT_MS;
++  let creds;
++  const done = new Set(); // each page is answered once: nothing is submitted twice
++  let hinted = false;
++  let redirected = false;
++  let lastChange = Date.now();
++  while (Date.now() < until) {
++    const stage = await page.probe(STAGE, 'other');
++    if (stage === 'signedIn') return;
++    if (stage !== 'other' && !done.has(stage)) {
++      creds ||= credentials();
++      if (stage === 'id') {
++        if (!(await page.probe(FOCUS_ID, false))) throw new Error('Found the ID page but could not focus its field.');
++        await page.insertText(creds.username);
++        if (!(await page.probe(clickText(CONTINUE), false))) await page.pressEnter();
++        console.log('Sign-in: entered the ID number.');
++      } else if (stage === 'choose') {
++        await page.probe(clickText(WITH_PASSWORD), false);
++        console.log('Sign-in: chose to sign in with a password.');
++      } else if (stage === 'password') {
++        if (await page.probe(ID_BEFORE_PASSWORD_EMPTY, false)) await page.insertText(creds.username);
++        await page.probe(FOCUS_PASSWORD, false);
++        await page.insertText(creds.password);
++        if (!(await page.probe(clickText(CONTINUE), false))) await page.pressEnter();
++        console.log('Sign-in: entered the password; waiting for the site.');
++      }
++      done.add(stage);
++      lastChange = Date.now();
++    } else if (done.has('password') && !redirected && (await page.probe('location.origin', '')) === ORIGIN) {
++      // Signed in, but landed on a page without the token (the legacy site): the token is issued on /sonline/.
++      await sleep(POLL_MS);
++      if ((await page.probe(STAGE, 'other')) !== 'signedIn') {
++        await page.navigate(START);
++        redirected = true;
++      }
++    } else if (!hinted && Date.now() - lastChange > 20_000) {
++      console.log('Sign-in is not moving. If the site asks for anything more, answer it in the browser window; '
++        + 'nothing already entered is submitted again.');
++      // Shape only: the address without its query, counts of inputs, and the hosts of frames.
++      console.log('  page: ' + JSON.stringify(await page.probe(PAGE_SHAPE, null)));
++      hinted = true;
++    }
++    await sleep(1000);
++  }
++  throw new Error('Not signed in after ' + SIGN_IN_WAIT_MS / 60_000 + ' minutes.');
++}
+diff --git a/src/cli/index.ts b/src/cli/index.ts
+new file mode 100644
+index 0000000..db1f6dd
+--- /dev/null
++++ b/src/cli/index.ts
+@@ -0,0 +1,8 @@
++/* What scripts/headless-export.mjs needs from the TypeScript sources, bundled by that script with
++   Vite into dist-cli/ before it runs: the collector and its steps (core/), and the export's root files
++   (README.md, CLAUDE.md, AGENTS.md, export-errors.json) as the extension writes them, so an export made
++   from the terminal reads the same as one made from the popup. Nothing here reaches chrome.*: readme.ts
++   and state.ts are plain data and functions over core. */
++export * from '../core';
++export { EXPORT_ERRORS, INSTRUCTION_POINTERS, exportErrors, exportReadme } from '../extension/shared/readme';
++export { FILE_LAYOUT, MACCABI_ORIGIN, SONLINE_PAGE, SUMMARY_PAGE, exportName } from '../extension/shared/state';
+diff --git a/test/headless.test.ts b/test/headless.test.ts
+new file mode 100644
+index 0000000..e3c5602
+--- /dev/null
++++ b/test/headless.test.ts
+@@ -0,0 +1,138 @@
++// scripts/headless-export.mjs puts two seams of its own under the collector: the Maccabi Online page as
++// a Transport (requests evaluated inside the page) and a folder as a Sink. Here the "page" evaluates the
++// in-page sources for real, with fetch answered by the fake Maccabi, and the folder is a temp dir; the
++// collector's own test-results step runs over them and writes what the extension would write.
++import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { afterEach, describe, expect, it } from 'vitest';
++import { Collector, newCtx, runStep, type HttpRequest, type HttpResponse } from '../src/core';
++import { EXPORT_ERRORS, exportErrors, exportReadme, INSTRUCTION_POINTERS } from '../src/extension/shared/readme';
++import { FILE_LAYOUT } from '../src/extension/shared/state';
++import { badPath, binResult, israelToday, jsonBytes, jsonResult, sessionFrom } from '../src/core';
++import { FETCH_IN_PAGE, folderSink, pageTransport, sessionOf, SNAPSHOT, XHR_IN_PAGE } from '../scripts/headless-lib.mjs';
++import { fakeMaccabi, htmlParser, MID } from './fakes';
++
++/** The bundle src/cli/index.ts stands for, from the sources. */
++const core = { Collector, newCtx, runStep, badPath, binResult, jsonBytes, jsonResult, israelToday, sessionFrom,
++  EXPORT_ERRORS, exportErrors, exportReadme, INSTRUCTION_POINTERS, FILE_LAYOUT };
++
++/** A page whose evaluate runs the expression as the browser would, with fetch and XMLHttpRequest answered by routes. */
++function fakePage(routes: ReturnType<typeof fakeMaccabi>['routes'], snapshot: Record<string, unknown>) {
++  const answer = (req: HttpRequest): HttpResponse => {
++    const url = new URL(req.url);
++    for (const r of routes) {
++      const res = r({ ...req, url: url.pathname + url.search }, url);
++      if (res) return res;
++    }
++    return { status: 404, redirected: false, contentType: 'text/html', bytes: new TextEncoder().encode('not found') };
++  };
++  const fetch = async (url: string, init: RequestInit) => {
++    const r = answer({ url, method: init.method as string, headers: init.headers as Record<string, string>, body: init.body as string });
++    return new Response(r.bytes as BodyInit, { status: r.status, headers: { 'content-type': r.contentType } });
++  };
++  class XMLHttpRequest {
++    status = 0;
++    responseText = '';
++    onload: (() => void) | null = null;
++    private req: HttpRequest = { url: '', method: 'GET', headers: {} };
++    open(method: string, url: string) { this.req = { ...this.req, method, url }; }
++    setRequestHeader(k: string, v: string) { this.req.headers![k] = v; }
++    send(body?: string) {
++      const r = answer({ ...this.req, body });
++      this.status = r.status;
++      this.responseText = new TextDecoder().decode(r.bytes);
++      this.onload?.();
++    }
++  }
++  const scope = { fetch, XMLHttpRequest, location: { hostname: snapshot.host, pathname: snapshot.path },
++    document: { cookie: snapshot.cookie }, sessionStorage: { getItem: () => snapshot.jwt },
++    AbortController, setTimeout, clearTimeout, btoa, String, Number, Array, Uint8Array, Promise, URL };
++  const evaluate = (expression: string) =>
++    new Function(...Object.keys(scope), 'return (' + expression + ')')(...Object.values(scope));
++  return { evaluate, probe: async (e: string, fallback: unknown) => { try { return await evaluate(e); } catch { return fallback; } } };
++}
++
++const dirs: string[] = [];
++afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
++
++describe('headless export', () => {
++  it('runs the test-results step through the page transport and the folder sink, and writes the root files', async () => {
++    const { routes } = fakeMaccabi();
++    const jwt = 'h.' + btoa(JSON.stringify({ mem_id: MID, gender: 'F' })).replace(/=+$/, '') + '.s';
++    const page = fakePage(routes, { host: 'online.maccabi4u.co.il', path: '/sonline/', cookie: '', jwt });
++    const session = await sessionOf(page, core);
++    expect(session).toEqual({ mid: MID, jwt, gender: 'F' });
++
++    const dir = mkdtempSync(join(tmpdir(), 'hrem-headless-'));
++    dirs.push(dir);
++    const sink = folderSink(core, dir, '0.0.0');
++    const c = new Collector({ transport: pageTransport(page), sink, html: htmlParser(), clock: { now: () => Date.now(), sleep: async () => {} } }, session!);
++    await runStep(c, newCtx(), 'testResults');
++
++    const files = readdirSync(join(dir, 'test-results'));
++    expect(files.sort()).toEqual(['details', 'files', 'followed-counter.json', 'history', 'latest-lab-results.json', 'list.json']);
++    const list = JSON.parse(readFileSync(join(dir, 'test-results/list.json'), 'utf8'));
++    expect(list.endpoint).toBe('POST TestResultsAPI/v1/members/0/{mid}/tests');
++    expect(list.data.tests).toHaveLength(4);
++    expect(readdirSync(join(dir, 'test-results/details'))).toHaveLength(4);
++    expect(readdirSync(join(dir, 'test-results/history'))).toEqual(['HGB_המוגלובין.json']);
++    // A PDF came back through the page as base64 and landed byte for byte.
++    const pdfs = readdirSync(join(dir, 'test-results/files'));
++    expect(pdfs.length).toBeGreaterThan(0);
++    expect(readFileSync(join(dir, 'test-results/files', pdfs[0])).subarray(0, 5).toString()).toBe('%PDF-');
++    expect(sink.problems).toEqual([]);
++
++    const { files: counts, errors } = sink.writeRootFiles(new Date().toISOString());
++    expect(errors).toEqual([]);
++    const onDisk = (d: string): number => readdirSync(d).reduce((n, f) => n + (statSync(join(d, f)).isDirectory() ? onDisk(join(d, f)) : 1), 0);
++    expect(counts).toEqual({ 'test-results': onDisk(join(dir, 'test-results')) });
++    const readme = readFileSync(join(dir, 'README.md'), 'utf8');
++    expect(readme).toContain('version 0.0.0 (headless-export), file layout ' + FILE_LAYOUT);
++    expect(readme).toContain('`test-results/`');
++    expect(JSON.parse(readFileSync(join(dir, EXPORT_ERRORS), 'utf8'))).toEqual([]);
++    expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8')).toBe(INSTRUCTION_POINTERS['CLAUDE.md']);
++
++    // A second run into the same folder changes nothing and asks for no document again.
++    const c2 = new Collector({ transport: pageTransport(page), sink: folderSink(core, dir, '0.0.0'), html: htmlParser(), clock: { now: () => Date.now(), sleep: async () => {} } }, session!);
++    await runStep(c2, newCtx(), 'testResults');
++    // Documents already there are not asked for (pdfIfMissing returns before the sink), so the log is JSON only, all unchanged.
++    expect(new Set(c2.log.map(([, r]) => r))).toEqual(new Set(['unchanged']));
++  });
++
++  it('brings a redirect, a failure and an XHR back the way the extension does', async () => {
++    const page = fakePage([
++      (req) => (req.url.startsWith('/x/redirect') ? { status: 302, redirected: true, contentType: '', bytes: new Uint8Array() } : undefined),
++      (req) => (req.url.startsWith('/x/json') ? { status: 200, redirected: false, contentType: 'application/json', bytes: new TextEncoder().encode('{"a":1}') } : undefined),
++    ], { host: 'online.maccabi4u.co.il', path: '/sonline/', cookie: '', jwt: null });
++    const t = pageTransport(page);
++    expect(await t.pagePath()).toBe('/sonline/');
++    const ok = await t.fetch({ url: '/x/json', method: 'GET' });
++    expect(ok.status).toBe(200);
++    expect(new TextDecoder().decode(ok.bytes)).toBe('{"a":1}');
++    expect(await t.xhr({ url: '/x/json', method: 'GET' })).toEqual({ status: 200, text: '{"a":1}' });
++    expect(await sessionOf(page, core, 1)).toBeNull(); // no token on the page
++    expect(typeof FETCH_IN_PAGE).toBe('string');
++    expect(typeof XHR_IN_PAGE).toBe('string');
++    expect(SNAPSHOT).toContain('sessionStorage');
++  });
++
++  it('refuses a bad path and keeps a document it already holds', async () => {
++    const dir = mkdtempSync(join(tmpdir(), 'hrem-headless-'));
++    dirs.push(dir);
++    const sink = folderSink(core, dir, '0.0.0');
++    expect(await sink.putJson('../x.json', {})).toEqual({ error: 'bad path: "../x.json"' });
++    expect(await sink.putJson('a/b.json', { x: 1 })).toEqual({ result: 'written' });
++    expect(await sink.putJson('a/b.json', { x: 1 })).toEqual({ result: 'unchanged' });
++    expect(await sink.putJson('a/b.json', { x: 2 })).toEqual({ result: 'updated' });
++    const pdf = new TextEncoder().encode('%PDF-1.4 x');
++    expect(await sink.putBin('a/f.pdf', pdf, false)).toEqual({ result: 'written' });
++    expect(await sink.putBin('a/f.pdf', new TextEncoder().encode('%PDF-1.4 y'), false)).toEqual({ result: 'kept_existing' });
++    // The folder's documents are indexed by content when the sink opens, so a rerun finds them.
++    const again = folderSink(core, dir, '0.0.0');
++    const { createHash } = await import('node:crypto');
++    expect(await again.findBySha256(createHash('sha256').update(pdf).digest('hex'))).toBe('a/f.pdf');
++    await again.putAlias('a/g.pdf', 'a/f.pdf');
++    expect(await again.aliasOf('a/g.pdf')).toBe('a/f.pdf');
++  });
++});
+-- 
+2.43.0
+
