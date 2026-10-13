@@ -25,7 +25,7 @@ That's the whole Maccabi side. To refresh later, run the extension again and reb
 python scripts/build_db.py --carry blood_tests.db:blueprint --maccabi-export ~/Downloads/maccabi-export-2026-11-01.zip --out blood_tests_new.db
 ```
 
-**No extension, no clicks:** the same collector runs from the terminal. `npm run export` in that repo (proposed upstream as a pull request; until it lands, apply [`docs/upstream/headless-export.patch`](docs/upstream/headless-export.patch) to a clone with `git am`) opens Chrome, signs in with credentials from 1Password or `.env`, pulls test results and every measurement's history in about 90 seconds, orders nothing (so no SMS), and writes the same folder the ZIP holds; `build_db.py --maccabi-export <folder>` reads it directly. That's the version to put on a schedule.
+**No extension, no clicks:** the same collector runs from the terminal. `npm run export` in that repo (merged upstream in [PR #15](https://github.com/RoniRachmani/health-records-export-for-maccabi/pull/15), shipped from v0.8.8) opens Chrome, signs in with credentials from 1Password or `.env`, pulls test results and every measurement's history in about 90 seconds, orders nothing (so no SMS), and writes the same folder the ZIP holds; `build_db.py --maccabi-export <folder>` reads it directly. That's the version to put on a schedule.
 
 The browser-console route below (`scripts/maccabi_extract.js`) still works and is kept as the generic technique for portals that *don't* have a tool like this — which is most of them.
 
