@@ -25,7 +25,7 @@ That's the whole Maccabi side. To refresh later, run the extension again and reb
 python scripts/build_db.py --carry blood_tests.db:blueprint --maccabi-export ~/Downloads/maccabi-export-2026-11-01.zip --out blood_tests_new.db
 ```
 
-**No extension, no clicks:** the same collector runs from the terminal. `npm run export` in that repo (merged upstream in [PR #15](https://github.com/RoniRachmani/health-records-export-for-maccabi/pull/15), shipped from v0.8.8) opens Chrome, signs in with credentials from 1Password or `.env`, pulls test results and every measurement's history in about 90 seconds, orders nothing (so no SMS), and writes the same folder the ZIP holds; `build_db.py --maccabi-export <folder>` reads it directly. That's the version to put on a schedule.
+**No extension, no clicks, no browser:** the same collector runs from the terminal. `npm run export` in that repo (merged upstream in [PR #15](https://github.com/RoniRachmani/health-records-export-for-maccabi/pull/15), shipped from v0.8.8) opens Chrome, signs in with credentials from 1Password or `.env`, pulls test results and every measurement's history in about 90 seconds, orders nothing (so no SMS), and writes the same folder the ZIP holds. `npm run export -- --no-browser` (proposed upstream as a second PR) does the same with no Chrome at all: Maccabi's SAML sign-in replayed over `fetch` — the chain [Oren Yomtov's maccabi-health](https://github.com/orenyomtov/maccabi-health) first worked out — with the site's password road in place of the SMS, so it runs from `cron` with no one present. `build_db.py --maccabi-export <folder>` reads either folder directly. That's the version to put on a schedule.
 
 The browser-console route below (`scripts/maccabi_extract.js`) still works and is kept as the generic technique for portals that *don't* have a tool like this — which is most of them.
 
@@ -63,6 +63,7 @@ With Claude (Cowork / Claude Code + Claude in Chrome), install the two skills an
 ## Prior art and credits
 
 - **[Health Records Export for Maccabi](https://github.com/RoniRachmani/health-records-export-for-maccabi)** (Roni Rachmani) — the right tool for Maccabi. Its README also documents the lab-value quirks (`result: 0` with the answer in `message`, `min_lim`/`max_lim` of 0/0 meaning no range, units and ranges changing over time) more thoroughly than we do, and its code showed that Maccabi's `getresultsbyid` endpoint *does* answer a plain replay once you send `doc_id` and the gender fields with the `request_id` — our "it needs a per-request hash" conclusion in the write-up was wrong; see the correction there.
+- **[maccabi-health](https://github.com/orenyomtov/maccabi-health)** (Oren Yomtov) — an npm library, CLI and MCP server that queries Maccabi live with no browser. Its `docs/AUTH.md` is where the SAML sign-in chain over plain `fetch` was first worked out, and its `docs/research/SESSION-LIFETIME.md` measured the one-hour absolute session cap and the idle timeout; the browserless exporter above is built on both, with the password road added.
 - The React-fiber-walk, `window.name` accumulator and network-log channel are general browser-agent techniques; nothing here is specific to health data.
 
 ## Privacy
