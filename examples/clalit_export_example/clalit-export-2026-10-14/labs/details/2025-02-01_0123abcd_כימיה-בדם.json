@@ -1,0 +1,61 @@
+{
+  "source": "clalit-mcp",
+  "kind": "lab-result",
+  "list": {
+    "ref": {
+      "s": "opaqueS2",
+      "d": "20250201",
+      "ls": "opaqueLS2"
+    },
+    "date": "01/02/2025",
+    "name": "כימיה בדם",
+    "summary": "תוצאות מוכנות",
+    "hasDetail": true,
+    "refToken": "tok"
+  },
+  "fetched_at": "2026-10-14T07:30:00.000Z",
+  "data": {
+    "ref": {
+      "s": "opaqueS2",
+      "d": "20250201",
+      "ls": "opaqueLS2"
+    },
+    "title": "כימיה בדם",
+    "date": "01/02/2025",
+    "analytes": [
+      {
+        "name": "גלוקוז",
+        "result": "91",
+        "units": "mg/dL",
+        "referenceRange": "70-100"
+      },
+      {
+        "name": "כולסטרול",
+        "result": "182",
+        "units": "mg/dL",
+        "referenceRange": "<200"
+      },
+      {
+        "name": "HDL",
+        "result": "61",
+        "units": "mg/dL",
+        "referenceRange": ">40"
+      },
+      {
+        "name": "CRP",
+        "result": "<0.5",
+        "units": "mg/dL",
+        "referenceRange": "עד 0.5"
+      },
+      {
+        "name": "HIV",
+        "result": "NEGATIVE"
+      }
+    ],
+    "notes": [
+      "תוצאה לדוגמה — נתונים סינתטיים"
+    ],
+    "hasDocument": true,
+    "documentEventTarget": "ctl00$x$lnkDownloadPdf"
+  }
+}

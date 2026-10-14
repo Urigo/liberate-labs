@@ -27,13 +27,15 @@ python scripts/build_db.py --carry blood_tests.db:blueprint --maccabi-export ~/D
 
 **No extension, no clicks, no browser:** the same collector runs from the terminal. `npm run export` in that repo (merged upstream in [PR #15](https://github.com/RoniRachmani/health-records-export-for-maccabi/pull/15), shipped from v0.8.8) opens Chrome, signs in with credentials from 1Password or `.env`, pulls test results and every measurement's history in about 90 seconds, orders nothing (so no SMS), and writes the same folder the ZIP holds. `npm run export -- --no-browser` (proposed upstream as a second PR) does the same with no Chrome at all: Maccabi's SAML sign-in replayed over `fetch` — the chain [Oren Yomtov's maccabi-health](https://github.com/orenyomtov/maccabi-health) first worked out — with the site's password road in place of the SMS, so it runs from `cron` with no one present. `build_db.py --maccabi-export <folder>` reads either folder directly. That's the version to put on a schedule.
 
+**Clalit members:** the counterpart is [clalit-mcp](https://github.com/netanelavr/clalit-mcp) by Netanel Avraham — a CLI and MCP server for Clalit Online. Its `export` command (proposed upstream as a PR from here) writes labs, prescriptions and lab orders as one folder in the same layout, and `build_db.py --clalit-export <folder>` loads it beside the others. Clalit's sign-in is ID + CAPTCHA + SMS with no password road, so a human signs in each time; the export itself takes a few minutes and orders nothing.
+
 The browser-console route below (`scripts/maccabi_extract.js`) still works and is kept as the generic technique for portals that *don't* have a tool like this — which is most of them.
 
 ## What's here
 
 | Path | What it does |
 |---|---|
-| `scripts/build_db.py` | Normalises everything into one SQLite schema (`lab_test`, `result`, `v_results`). Reads the Maccabi extension's ZIP/folder (`--maccabi-export`), the console-route TSV (`--maccabi`), and Blueprint JSON (`--blueprint`); `--carry old.db:source` keeps a source from an earlier build. Handles qualitative results (short answer in `value_text`, the lab's note in `interpretation`), "no range" sentinels, and de-duplicates the export's three copies of each value. |
+| `scripts/build_db.py` | Normalises everything into one SQLite schema (`lab_test`, `result`, `v_results`). Reads the Maccabi extension's ZIP/folder (`--maccabi-export`), the console-route TSV (`--maccabi`), a `clalit-mcp export` folder (`--clalit-export`: displayed text parsed into numbers and ranges), and Blueprint JSON (`--blueprint`); `--carry old.db:source` keeps a source from an earlier build. Handles qualitative results (short answer in `value_text`, the lab's note in `interpretation`), "no range" sentinels, and de-duplicates the export's three copies of each value. |
 | `scripts/blueprint_extract.js` | Pulls the full biomarker list for a Blueprint test straight from its API using the page's own session token. |
 | `scripts/maccabi_extract.js` | Fallback / generic technique: browser-console snippets that pull every lab panel out of a React portal's rendered state and move it out of the page (two escape hatches for when downloads are blocked). |
 | `scripts/assemble_from_network_log.py` | Reassembles data smuggled out through URL-encoded `fetch` requests (the "network-log channel"). |
@@ -41,7 +43,7 @@ The browser-console route below (`scripts/maccabi_extract.js`) still works and i
 | `dashboard/` | Self-contained HTML trends dashboard (small multiples, reference bands, light/dark, table view). |
 | `skills/lab-portal-export/` | A Claude skill: get labs out of a portal — via the extension when there is one, by driving the browser when there isn't — and into the database. |
 | `skills/apple-health-lab-entry/` | A Claude skill: enter lab results into Apple Health via iPhone Mirroring + computer control. |
-| `examples/` | Synthetic data in each input format, including a miniature extension export (`maccabi_export_example/`). |
+| `examples/` | Synthetic data in each input format, including miniature exports in the Maccabi extension's layout (`maccabi_export_example/`) and clalit-mcp's (`clalit_export_example/`). |
 | `docs/writeup.md` | The narrative: how it was done and what we learned. |
 | `docs/gotchas.md` | Everything that bit us, as a checklist. |
 
@@ -63,6 +65,7 @@ With Claude (Cowork / Claude Code + Claude in Chrome), install the two skills an
 ## Prior art and credits
 
 - **[Health Records Export for Maccabi](https://github.com/RoniRachmani/health-records-export-for-maccabi)** (Roni Rachmani) — the right tool for Maccabi. Its README also documents the lab-value quirks (`result: 0` with the answer in `message`, `min_lim`/`max_lim` of 0/0 meaning no range, units and ranges changing over time) more thoroughly than we do, and its code showed that Maccabi's `getresultsbyid` endpoint *does* answer a plain replay once you send `doc_id` and the gender fields with the `request_id` — our "it needs a per-request hash" conclusion in the write-up was wrong; see the correction there.
+- **[clalit-mcp](https://github.com/netanelavr/clalit-mcp)** (Netanel Avraham) — CLI and MCP server for Clalit Online (labs with PDFs, prescriptions, lab orders), with a careful loopback login for the CAPTCHA + SMS flow and parsers tested against saved HTML. The `export` command and this repo's `--clalit-export` loader were built on it.
 - **[maccabi-health](https://github.com/orenyomtov/maccabi-health)** (Oren Yomtov) — an npm library, CLI and MCP server that queries Maccabi live with no browser. Its `docs/AUTH.md` is where the SAML sign-in chain over plain `fetch` was first worked out, and its `docs/research/SESSION-LIFETIME.md` measured the one-hour absolute session cap and the idle timeout; the browserless exporter above is built on both, with the password road added.
 - The React-fiber-walk, `window.name` accumulator and network-log channel are general browser-agent techniques; nothing here is specific to health data.
 

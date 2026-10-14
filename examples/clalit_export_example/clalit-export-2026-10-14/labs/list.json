@@ -1,0 +1,35 @@
+{
+  "source": "clalit-mcp",
+  "kind": "lab-list",
+  "range": {
+    "fromDate": "01.01.1990",
+    "toDate": "14.10.2026"
+  },
+  "fetched_at": "2026-10-14T07:30:00.000Z",
+  "data": [
+    {
+      "ref": {
+        "s": "opaqueS1",
+        "d": "20250315",
+        "ls": "opaqueLS1"
+      },
+      "date": "15/03/2025",
+      "name": "ספירת דם",
+      "summary": "תוצאות מוכנות",
+      "hasDetail": true,
+      "refToken": "tok"
+    },
+    {
+      "ref": {
+        "s": "opaqueS2",
+        "d": "20250201",
+        "ls": "opaqueLS2"
+      },
+      "date": "01/02/2025",
+      "name": "כימיה בדם",
+      "summary": "תוצאות מוכנות",
+      "hasDetail": true,
+      "refToken": "tok"
+    }
+  ]
+}

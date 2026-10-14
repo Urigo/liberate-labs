@@ -2,6 +2,10 @@
 """
 Build one SQLite database from Blueprint JSON + Maccabi lab results.
 
+Clalit results come from the folder `clalit-mcp export` writes (--clalit-export,
+https://github.com/netanelavr/clalit-mcp): displayed text parsed into numbers and
+ranges where it is one ("14.2", "12.0-16.0", "<200"), kept as text where it isn't.
+
 Maccabi results can come from either of two sources:
 
   --maccabi-export PATH   The ZIP (or unzipped folder) written by Roni Rachmani's
@@ -284,6 +288,100 @@ def load_maccabi_export(c, path):
 
 
 # ----------------------------------------------------------------------------
+# Clalit — the folder written by `clalit-mcp export`
+# (https://github.com/netanelavr/clalit-mcp). Clalit Online is HTML, so every
+# value arrives as displayed text: "14.2", "<0.5", "NEGATIVE"; a reference
+# range as "12.0-16.0", "<200", ">60" or "עד 200"; a flag cell when the portal
+# marked the row. The loader turns those into numbers and bounds where it can
+# and keeps the text where it can't.
+# ----------------------------------------------------------------------------
+
+import re
+
+_NUM = r"-?\d+(?:[.,]\d+)?"
+
+
+def parse_value(text):
+    """'14.2' -> (14.2, '14.2'); '<0.5' -> (None, '<0.5'); 'NEGATIVE' -> (None, 'NEGATIVE')."""
+    t = clean(text)
+    m = re.fullmatch(_NUM, t.replace(",", "."))
+    return (float(t.replace(",", ".")), t) if m else (None, t or None)
+
+
+def parse_range(text):
+    """'12.0-16.0' -> (12.0, 16.0); '<200' / 'עד 200' -> (None, 200); '>60' / 'מעל 60' -> (60, None); else (None, None)."""
+    t = clean(text).replace(",", ".")
+    if not t:
+        return None, None
+    m = re.fullmatch(rf"({_NUM})\s*[-–]\s*({_NUM})", t)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    m = re.fullmatch(rf"(?:<|<=|≤|עד)\s*({_NUM})", t)
+    if m:
+        return None, float(m.group(1))
+    m = re.fullmatch(rf"(?:>|>=|≥|מעל)\s*({_NUM})", t)
+    if m:
+        return float(m.group(1)), None
+    return None, None
+
+
+def load_clalit_export(c, path):
+    """`clalit-mcp export` folder: labs/list.json + labs/details/*.json (each {source, kind, list, data})."""
+    root = path
+    for cand in (path, os.path.join(path, "labs")):
+        if os.path.isdir(os.path.join(cand, "details")):
+            root = cand
+            break
+    else:
+        subs = [d for d in os.listdir(path) if d.startswith("clalit-export-")] if os.path.isdir(path) else []
+        if subs:
+            root = os.path.join(path, sorted(subs)[-1], "labs")
+    details_dir = os.path.join(root, "details")
+    if not os.path.isdir(details_dir):
+        raise SystemExit(f"no labs/details/ under {path}")
+    n = 0
+    panels = 0
+    for name in sorted(os.listdir(details_dir)):
+        if not name.endswith(".json"):
+            continue
+        rec = json.load(open(os.path.join(details_dir, name), encoding="utf-8"))
+        data, item = rec.get("data") or {}, rec.get("list") or {}
+        ref = item.get("ref") or data.get("ref") or {}
+        source_test_id = "|".join(str(ref.get(k, "")) for k in ("s", "d", "ls")) or name[:-5]
+        date = _iso_dmy(item.get("date")) or _iso_dmy(data.get("date")) or name[:10]
+        panel_name = clean(item.get("name") or data.get("title")) or "Lab panel"
+        c.execute("INSERT OR IGNORE INTO lab_test(source,source_test_id,test_name,lab_name,test_date,referrer) VALUES(?,?,?,?,?,?)",
+                  ("clalit", source_test_id, panel_name, "Clalit", date, None))
+        tid = c.execute("SELECT id FROM lab_test WHERE source='clalit' AND source_test_id=?", (source_test_id,)).fetchone()[0]
+        panels += 1
+        notes = " ".join(clean(x) for x in (data.get("notes") or []) if clean(x)) or None
+        for a in data.get("analytes") or []:
+            vnum, vtext = parse_value(a.get("result"))
+            mn, mx = parse_range(a.get("referenceRange"))
+            flag = clean(a.get("flag"))
+            abn = 1 if flag else (1 if (vnum is not None and ((mn is not None and vnum < mn) or (mx is not None and vnum > mx))) else 0)
+            c.execute("""INSERT INTO result(lab_test_id,source,test_date,panel,biomarker,value_num,value_text,unit,
+                         ref_min,ref_max,interpretation,status,is_abnormal,tags,source_ref) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (tid, "clalit", date, panel_name, clean(a.get("name")), vnum, vtext, clean(a.get("units")) or None,
+                       mn, mx, clean(a.get("referenceRange")) or None, flag or None, abn, None, None))
+            n += 1
+        if notes:
+            c.execute("UPDATE result SET interpretation = COALESCE(interpretation || ' | ', '') || ? WHERE lab_test_id=? AND interpretation IS NULL", (notes, tid))
+    print(f"  clalit export: {panels} result pages -> {n} values")
+    return n
+
+
+def _iso_dmy(d):
+    """'15/03/2025' or '15.03.2025' -> '2025-03-15'; ISO passes through; else None."""
+    t = clean(d)
+    m = re.match(r"^(\d{2})[./](\d{2})[./](\d{4})", t)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", t)
+    return m.group(0) if m else None
+
+
+# ----------------------------------------------------------------------------
 # Carry a source over from an earlier database (e.g. keep Blueprint while
 # rebuilding Maccabi from a fresh export when the raw Blueprint JSON is gone)
 # ----------------------------------------------------------------------------
@@ -312,6 +410,7 @@ def main():
     ap.add_argument("--blueprint", help="Blueprint JSON from scripts/blueprint_extract.js")
     ap.add_argument("--maccabi", help="TSV from scripts/maccabi_extract.js (console route)")
     ap.add_argument("--maccabi-export", help="ZIP or folder from the Health Records Export for Maccabi extension")
+    ap.add_argument("--clalit-export", help="folder from `clalit-mcp export` (or the directory holding it)")
     ap.add_argument("--carry", action="append", default=[], metavar="OLD.db:SOURCE",
                     help="copy one source's rows from an earlier database, e.g. old.db:blueprint (repeatable)")
     ap.add_argument("--out", default="blood_tests.db")
@@ -328,6 +427,8 @@ def main():
         print(f"{source} results carried from {old_db}:", carry_source(c, old_db, source))
     if a.maccabi_export:
         print("maccabi results (extension export):", load_maccabi_export(c, a.maccabi_export))
+    if a.clalit_export:
+        print("clalit results (clalit-mcp export):", load_clalit_export(c, a.clalit_export))
     if a.maccabi:
         print("maccabi results (console TSV):", load_maccabi(c, a.maccabi))
     con.commit()
