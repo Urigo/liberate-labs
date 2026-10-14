@@ -1,0 +1,85 @@
+{
+  "source": "clalit-mcp",
+  "kind": "lab-result",
+  "list": {
+    "ref": {
+      "s": "opaqueS1",
+      "d": "20250315",
+      "ls": "opaqueLS1"
+    },
+    "date": "15.03.2025",
+    "name": "המטולוגיה",
+    "summary": "פלונית אלמונית · 100000001",
+    "hasDetail": true,
+    "refToken": "tok",
+    "doctor": "פלונית אלמונית",
+    "testNumber": "100000001"
+  },
+  "fetched_at": "2026-10-14T07:30:00.000Z",
+  "data": {
+    "ref": {
+      "s": "opaqueS1",
+      "d": "20250315",
+      "ls": "opaqueLS1"
+    },
+    "title": "המטולוגיה",
+    "date": "15.03.2025",
+    "analytes": [
+      {
+        "name": "HGB",
+        "result": "14.2 g/dL",
+        "value": 14.2,
+        "units": "g/dL",
+        "referenceRange": "12-16",
+        "rangeMin": 12,
+        "rangeMax": 16,
+        "turnaround": "1 ימי עבודה",
+        "explanation": "הסבר לדוגמה בלבד.",
+        "compare": {
+          "labId": "opaque1",
+          "labName": "opaque1"
+        }
+      },
+      {
+        "name": "PLT",
+        "result": "245 10^3/µL",
+        "value": 245,
+        "units": "10^3/µL",
+        "referenceRange": "150-400",
+        "rangeMin": 150,
+        "rangeMax": 400,
+        "turnaround": "1 ימי עבודה"
+      },
+      {
+        "name": "WBC",
+        "result": "11.8 10^3/µL",
+        "value": 11.8,
+        "units": "10^3/µL",
+        "referenceRange": "4-10",
+        "rangeMin": 4,
+        "rangeMax": 10,
+        "flag": "H",
+        "turnaround": "1 ימי עבודה"
+      },
+      {
+        "name": "TOXOPLASMA IgG",
+        "result": "0.52 Negative",
+        "value": 0.52,
+        "qualifier": "Negative",
+        "turnaround": "2 ימי עבודה"
+      },
+      {
+        "name": "EPITHELIAL-SED",
+        "result": "FEW",
+        "turnaround": "1 ימי עבודה"
+      }
+    ],
+    "notes": [
+      "WBC\nתוצאה לדוגמה — נתונים סינתטיים"
+    ],
+    "hasDocument": true,
+    "documentEventTarget": "ctl00$ctl00$cphLeftMenu$cphPageLeftMenu$ctl00$ctl00$ctl07",
+    "time": "08:15",
+    "testNumber": "100000001"
+  }
+}

@@ -333,9 +333,12 @@ def load_clalit_export(c, path):
             root = cand
             break
     else:
-        subs = [d for d in os.listdir(path) if d.startswith("clalit-export-")] if os.path.isdir(path) else []
+        # The newest export folder under the path: exactly clalit-export-YYYY-MM-DD, so a folder set
+        # aside as clalit-export-YYYY-MM-DD-something is not taken for a newer one.
+        subs = [d for d in os.listdir(path) if re.fullmatch(r"clalit-export-\d{4}-\d{2}-\d{2}", d)] if os.path.isdir(path) else []
         if subs:
             root = os.path.join(path, sorted(subs)[-1], "labs")
+            print(f"  clalit export folder: {os.path.dirname(root)}")
     details_dir = os.path.join(root, "details")
     if not os.path.isdir(details_dir):
         raise SystemExit(f"no labs/details/ under {path}")
@@ -349,15 +352,27 @@ def load_clalit_export(c, path):
         ref = item.get("ref") or data.get("ref") or {}
         source_test_id = "|".join(str(ref.get(k, "")) for k in ("s", "d", "ls")) or name[:-5]
         date = _iso_dmy(item.get("date")) or _iso_dmy(data.get("date")) or name[:10]
+        # The list's name is the lab section (המטולוגיה, כימיה…); the detail's title is the same section.
         panel_name = clean(item.get("name") or data.get("title")) or "Lab panel"
+        referrer = clean(item.get("doctor")) or None
         c.execute("INSERT OR IGNORE INTO lab_test(source,source_test_id,test_name,lab_name,test_date,referrer) VALUES(?,?,?,?,?,?)",
-                  ("clalit", source_test_id, panel_name, "Clalit", date, None))
+                  ("clalit", source_test_id, panel_name, "Clalit", date, referrer))
         tid = c.execute("SELECT id FROM lab_test WHERE source='clalit' AND source_test_id=?", (source_test_id,)).fetchone()[0]
         panels += 1
         notes = " ".join(clean(x) for x in (data.get("notes") or []) if clean(x)) or None
         for a in data.get("analytes") or []:
-            vnum, vtext = parse_value(a.get("result"))
-            mn, mx = parse_range(a.get("referenceRange"))
+            # clalit-mcp ≥ the live-pages parser splits the shown result itself: `value` (number), `units`
+            # or `qualifier` ("Negative"), `rangeMin`/`rangeMax` from the page's range bar, `flag` L/H.
+            # Older exports have only the displayed strings; those are parsed here as before.
+            if isinstance(a.get("value"), (int, float)):
+                vnum = float(a["value"])
+                # value_text always holds the displayed text: the qualifier when there is one
+                # ("0.52 Negative" -> 0.52 / "Negative"), else the number as shown.
+                shown = clean(a.get("result"))
+                vtext = clean(a.get("qualifier")) or (shown.split(" ")[0] if shown else str(a["value"]))
+            else:
+                vnum, vtext = parse_value(a.get("result"))
+            mn, mx = (a.get("rangeMin"), a.get("rangeMax")) if isinstance(a.get("rangeMin"), (int, float)) else parse_range(a.get("referenceRange"))
             flag = clean(a.get("flag"))
             abn = 1 if flag else (1 if (vnum is not None and ((mn is not None and vnum < mn) or (mx is not None and vnum > mx))) else 0)
             c.execute("""INSERT INTO result(lab_test_id,source,test_date,panel,biomarker,value_num,value_text,unit,

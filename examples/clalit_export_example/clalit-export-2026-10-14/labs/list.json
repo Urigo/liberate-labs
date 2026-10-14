@@ -13,11 +13,13 @@
         "d": "20250315",
         "ls": "opaqueLS1"
       },
-      "date": "15/03/2025",
-      "name": "ספירת דם",
-      "summary": "תוצאות מוכנות",
+      "date": "15.03.2025",
+      "name": "המטולוגיה",
+      "summary": "פלונית אלמונית · 100000001",
       "hasDetail": true,
-      "refToken": "tok"
+      "refToken": "tok",
+      "doctor": "פלונית אלמונית",
+      "testNumber": "100000001"
     },
     {
       "ref": {
@@ -25,11 +27,13 @@
         "d": "20250201",
         "ls": "opaqueLS2"
       },
-      "date": "01/02/2025",
-      "name": "כימיה בדם",
-      "summary": "תוצאות מוכנות",
+      "date": "01.02.2025",
+      "name": "כימיה",
+      "summary": "פלוני אלמוני · 100000002",
       "hasDetail": true,
-      "refToken": "tok"
+      "refToken": "tok",
+      "doctor": "פלוני אלמוני",
+      "testNumber": "100000002"
     }
   ]
 }
