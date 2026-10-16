@@ -40,6 +40,7 @@ The browser-console route below (`scripts/maccabi_extract.js`) still works and i
 | `scripts/maccabi_extract.js` | Fallback / generic technique: browser-console snippets that pull every lab panel out of a React portal's rendered state and move it out of the page (two escape hatches for when downloads are blocked). |
 | `scripts/assemble_from_network_log.py` | Reassembles data smuggled out through URL-encoded `fetch` requests (the "network-log channel"). |
 | `scripts/entry_sheet.py` | Produces the "latest value per marker" sheet you need for Apple Health's lab-entry forms, in the units those forms expect. |
+| `scripts/make_shc.py` | Builds a SMART Health Card (`.smart-health-card`) of LOINC-coded lab results, signed with your own key. Health imports it into Lab Results (Not Verified); Longevity's panels don't count it. Example spec: `examples/shc_spec_example.json`. |
 | `dashboard/` | Self-contained HTML trends dashboard (small multiples, reference bands, light/dark, table view). |
 | `skills/lab-portal-export/` | A Claude skill: get labs out of a portal — via the extension when there is one, by driving the browser when there isn't — and into the database. |
 | `skills/apple-health-lab-entry/` | A Claude skill: enter lab results into Apple Health via iPhone Mirroring + computer control. |
@@ -51,7 +52,7 @@ The browser-console route below (`scripts/maccabi_extract.js`) still works and i
 
 **Getting data out.** Check for a purpose-built exporter first; for Maccabi there is one, and a deterministic tool beats an agent clicking through pages every time. Where there isn't one: modern patient portals render results from an authenticated API into React state, and the *rendered state is right there in the DOM*. Walk React's fiber tree, find the prop holding the results array, and you have clean structured data without reverse-engineering the API. Then you need to get it out of the browser tab, which is where it gets fun: browsers block repeated programmatic downloads, so we use two escape hatches — `window.name` (survives navigation, even cross-origin) to accumulate data across pages, and URL-encoded `fetch` requests whose URLs get captured by the agent's network log.
 
-**Getting data in.** Apple Health's HealthKit has no data types for lab markers and its clinical-records store is read-only for apps. iOS 27 adds a manual lab-entry UI inside the Longevity tab. Drive it from a Mac via iPhone Mirroring: taps and typing reach the phone, scrolling does not, paste long text instead of typing it, and the platelet field is per-µL (enter `224000`, not `224`).
+**Getting data in.** Apple Health's HealthKit has no data types for lab markers and its clinical-records store is read-only for apps. iOS 27 adds a manual lab-entry UI inside the Longevity tab. Drive it from a Mac via iPhone Mirroring: taps and typing reach the phone, scrolling does not, paste long text instead of typing it, and the platelet field is per-µL (enter `224000`, not `224`). The forms only take each panel's core markers; for the rest, `scripts/make_shc.py` makes a SMART Health Card that Health imports into Lab Results — but as of iOS 27.2 beta, Longevity doesn't count imported results (FB25211694).
 
 ## Quick start
 

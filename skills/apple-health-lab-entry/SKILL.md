@@ -15,7 +15,7 @@ description: Enter blood test / lab results into Apple Health's lab-entry panels
 ## Setup
 
 1. Load the computer-use skill, then `computer_resolve_access(["iPhone Mirroring"])` → `computer_request_access`.
-2. Ask the user to open iPhone Mirroring and navigate the phone to the lab-entry panel they want filled. **You cannot scroll the mirrored phone** — scroll-wheel and drag gestures are not delivered; taps and typing are. Division of labour: the human scrolls/navigates, you fill forms.
+2. Ask the user to open iPhone Mirroring and navigate the phone to the lab-entry panel they want filled. **You cannot scroll the mirrored phone** — scroll-wheel and drag gestures are not delivered; taps and typing are. Division of labour: the human scrolls/navigates, you fill forms. (Feedback Assistant's form does move with scroll events of amount ~50; Health's screens don't.)
 3. Background `app_*` taps work, but you'll need **full-screen control** for a reliable keyboard and for pickers (in background mode, opening a picker tends to select whatever row slides under the cursor); request it once (`computer_request_full_control`), and keep iPhone Mirroring frontmost (`computer_open_application` if focus drifts). The mirrored window has no accessibility tree — click by coordinates from screenshots, and wait ~1.5 s after a sheet opens before screenshotting.
 4. **Paste long text; type only short values.** Synthetic typing of more than a few words gets scrambled on the phone (reordered/duplicated keystrokes, worst around quotes and newlines). For anything longer — a note, a description — write it to the Mac clipboard (`computer_write_clipboard`, needs the `clipboardWrite` grant) and press ⌘V in the field; iPhone Mirroring shares the clipboard and the paste is exact. Numbers for lab fields type fine.
 5. Prepare the values first with `scripts/entry_sheet.py blood_tests.db --source <lab>` so a whole panel shares one draw date.
@@ -41,6 +41,14 @@ Each panel is a paged form: `Result/value`, `Unit` (read-only), `Date Collected`
 | Insulin | mcIU/mL | as reported |
 
 Dates follow the device locale (dd/mm in Israel/UK). Lab reference ranges go in the optional fields; Health keeps its own "Health Range" separately.
+
+## Markers the forms don't have
+
+Longevity's "Your Results" counts more markers per panel than the forms ask for (Blood Health 20, Cholesterol 7, Kidney 9, Liver 8), and lists the rest as missing. There is no manual way to add them. Tell the user so before trying.
+
+- `scripts/make_shc.py spec.json out.smart-health-card` builds a SMART Health Card of LOINC-coded Observations, signed with the user's own key (`~/.config/liberate-labs/shc-issuer-key.pem`, created on first run). The user AirDrops it to the phone (or opens it from Files/Mail — not straight from a cloud-storage app) and taps Add to Health.
+- Expected result: one "Lab Result Record", Not Verified, values under Browse → Lab Results. **Longevity's counts do not change** (tested iOS 27.2 beta, Oct 2026; FB25211694). Set that expectation; offer the card as a way to keep the values in Health, not to complete the panels. An import can only be deleted as a whole; reopening the same file says "Duplicate Data".
+- To check counts: Longevity → a petal page → scroll to "Your Results" (the human scrolls) → tap a panel to see which markers are still "--".
 
 ## Verify
 

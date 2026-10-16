@@ -76,11 +76,19 @@ The forms look consistent and aren't. WBC's field is in 10³/mcL, so "6" is corr
 
 Also: results must be dated within the last 12 months, so the 2020–2025 history can't go in. Apple Health is a current-snapshot layer. The history lives in the database.
 
+### The markers the forms don't ask for
+
+Once the core panels were in, Longevity started counting: Blood Health *4 of 20 markers*, Cholesterol 3 of 7, Kidney 4 of 9, Liver 2 of 8. The missing ones — the CBC differential, MCV, RDW, total cholesterol, BUN, albumin and so on — were all in the same Blueprint draw. But the manual forms only have fields for each panel's core markers, and there's no other way in.
+
+People outside the US, UK and Canada (where Health Records providers exist) have hit the same wall. The workaround some use is a **SMART Health Card**: the signed QR/file format from the COVID-vaccine era, which also has a *laboratory* type. Health imports it even when it can't verify the signer. So I wrote `scripts/make_shc.py`: it takes a list of LOINC-coded results, builds the FHIR Observations, deflates and signs them with a key of your own, and writes a `.smart-health-card` file. AirDrop it to the phone, open it, Add to Health.
+
+It worked, as far as it goes: a "Lab Result Record" with 16 entries, marked *Not Verified*, each value under Lab Results with its own chart. And Longevity didn't count a single one — Blood Health still read 4 of 20. The imported results live in the clinical-records store; Longevity reads its own lab entries. I filed that with Apple too (FB25211694). Until that changes, the card is a way to keep extra markers in Health, not to complete the panels.
+
 ## What I'd take away
 
 - Before scraping anything: search for an existing exporter. For Maccabi it exists, it's excellent, and it made most of Part 1 unnecessary for that portal.
 - For locked portals with no such tool: rendered state beats the API; `window.name` beats every other variable; the network log is a write channel when downloads fail. And when an API replay comes back empty, suspect a missing body field before a signature.
 - For agents: tool return values are not a data path. Design for the channels that overflow to files.
-- For Apple Health: it's a trust model, not a missing feature — and when the door finally opens, read the units.
+- For Apple Health: it's a trust model, not a missing feature — and when the door finally opens, read the units. A self-signed SMART Health Card gets lab values into Health, but not into Longevity's panels.
 
 Everything's in the repo, including two Claude skills — `lab-portal-export` and `apple-health-lab-entry` — that encode all of the above so you can hand the job to an agent and go make coffee. MIT, do what you like.

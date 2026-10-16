@@ -32,6 +32,10 @@
 
 **Lab entry lives at Longevity → Labs card → "Enter Your Lab Results."** It is *not* a searchable data type: Browse-tab search for "LDL" finds nothing; "Cholesterol" finds only *dietary* cholesterol. Panels must be fully complete to count in the evaluation.
 
+**The manual forms only take each panel's core markers.** Complete Blood Count is 4 fields (WBC, Hemoglobin, Hematocrit, Platelets), yet Longevity's "Your Results" counts Blood Health as *x of 20 markers* and lists the differential and indices (basophils … neutrophils as % and count, MCH, MCHC, MCV, MPV, RBC, RDW) as missing. Cholesterol counts 7, Kidney 9, Liver 8 — again more than the forms ask for. There is no "add another marker" option, and the missing rows and "Get Deeper Insights With Labs" lead back to the same forms.
+
+**SMART Health Cards import, but Longevity ignores them.** A `.smart-health-card` file (FHIR lab Observations with LOINC codes, signed with your own key — `scripts/make_shc.py`) opened from Files/Mail/AirDrop is accepted: Health adds one "Lab Result Record", marked *Not Verified*, and the values show under Browse → Lab Results with history. But the Longevity panel counts don't move (Blood Health stayed 4 of 20 with all 16 extra CBC markers imported), the Lab Results "Groupings" tab shows *No Data*, and the entries carry LOINC long names ("Basophils/100 leukocytes in Blood by Automated count") instead of Health's short ones. Opening the file straight from a cloud-storage app gives "Can't add this data". An import can only be deleted as a whole. Filed as FB25211694 (Oct 2026). Whether a *verified* card (issuer in the VCI directory) would count is untested.
+
 **Results must be dated within the last 12 months.** Older history can't be entered. Health is a current-snapshot layer; keep your long history elsewhere.
 
 **Units differ *within* the same panel.** WBC is in 10³/mcL (`6` is right). Platelets is in **1/mcL** (`224000`, not `224`). Entering `224` produces a "Platelets Critical" alert. Read the Unit row before typing every single field.
@@ -40,7 +44,7 @@
 
 ## Driving the phone via iPhone Mirroring + computer control
 
-**Taps and typing reach the phone. Scroll-wheel and click-drag don't.** Neither background `app_*` actions nor full-screen synthetic scroll/drag moved the mirrored screen; taps and keyboard worked in both modes. Plan the workflow so the human does any scrolling and the agent fills forms.
+**Taps and typing reach the phone. Scroll-wheel and click-drag don't.** Neither background `app_*` actions nor full-screen synthetic scroll/drag moved the mirrored screen; taps and keyboard worked in both modes. Plan the workflow so the human does any scrolling and the agent fills forms. One exception seen: in Feedback Assistant, a scroll-wheel event with a large amount (50 clicks) moved the form by roughly 30 points per event, enough to reach every field; Health's Longevity screens still didn't move.
 
 **The mirrored window has no accessibility tree.** You're clicking by coordinates off screenshots. Keep the Mirroring window frontmost; if focus drifts to another app, re-open it before clicking.
 
@@ -48,7 +52,7 @@
 
 **Dismiss the keyboard before tapping Next.** The ✓ on the keyboard toolbar; otherwise the tap lands on the keyboard.
 
-**Don't *type* long text into a mirrored iPhone — paste it.** Synthetic typing of anything beyond a few words gets scrambled on the phone side: keystrokes reorder and duplicate, especially around quote characters (smart punctuation) and line breaks. A 1,800-character bug report came out with fragments repeated and words spliced mid-stream, three times in a row. iPhone Mirroring shares the Mac clipboard, so write the text to the Mac clipboard and press ⌘V in the field — it lands byte-exact, paragraphs and all. Short values (numbers, a word) type fine.
+**Don't *type* long text into a mirrored iPhone — paste it.** Synthetic typing of anything beyond a few words gets scrambled on the phone side: keystrokes reorder and duplicate, especially around quote characters (smart punctuation) and line breaks. A 1,800-character bug report came out with fragments repeated and words spliced mid-stream, three times in a row. iPhone Mirroring shares the Mac clipboard, so write the text to the Mac clipboard and press ⌘V in the field — it lands byte-exact, paragraphs and all. Short values (numbers, a word) type fine. If you can't use the clipboard, type in chunks of a few hundred characters with **no line breaks** and a pause between them — that came through with one garbled word in 1,650 characters, while the same text with newlines was spliced badly.
 
 **Background mode selects the wrong picker row.** In background (`app_*`) control, tapping a row that opens a sheet/picker tends to also "select" whichever row slides under the cursor as the sheet animates in — we got Apple Intelligence, App Switcher and App Store in turn when aiming at Health. Full-screen control sends proper press/release and doesn't do this. Also: wait ~1.5 s after opening a sheet before screenshotting, or you'll click coordinates from a mid-animation frame.
 

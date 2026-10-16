@@ -1,0 +1,13 @@
+{
+  "iss": "https://github.com/Urigo/liberate-labs",
+  "patient": {"family": "Example", "given": ["Pat"]},
+  "observations": [
+    {"loinc": "706-2",   "display": "Basophils/100 leukocytes in Blood by Automated count",   "date": "2026-06-07", "value": 0.6,  "unit": "%"},
+    {"loinc": "704-7",   "display": "Basophils [#/volume] in Blood by Automated count",       "date": "2026-06-07", "value": 0.04, "unit": "10*3/uL", "high": 0.2},
+    {"loinc": "713-8",   "display": "Eosinophils/100 leukocytes in Blood by Automated count", "date": "2026-06-07", "value": 2.1,  "unit": "%"},
+    {"loinc": "736-9",   "display": "Lymphocytes/100 leukocytes in Blood by Automated count", "date": "2026-06-07", "value": 33.0, "unit": "%"},
+    {"loinc": "785-6",   "display": "MCH [Entitic mass] by Automated count",                  "date": "2026-06-07", "value": 30.1, "unit": "pg",   "low": 27,   "high": 33},
+    {"loinc": "787-2",   "display": "MCV [Entitic volume] by Automated count",                "date": "2026-06-07", "value": 89.0, "unit": "fL",   "low": 81.4, "high": 101.7},
+    {"loinc": "789-8",   "display": "Erythrocytes [#/volume] in Blood by Automated count",    "date": "2026-06-07", "value": 5.0,  "unit": "10*6/uL", "low": 4.2, "high": 5.8}
+  ]
+}

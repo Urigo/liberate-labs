@@ -7,3 +7,5 @@ dashboard.html
 __pycache__/
 !examples/**/*.json
 !examples/**/*.tsv
+*.pem
+*.smart-health-card
