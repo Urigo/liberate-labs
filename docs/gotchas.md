@@ -30,6 +30,8 @@
 
 **iOS 27.0 shipped without the new Health app.** The redesigned app with the Longevity tab and lab entry is "later this year, starting in U.S. English." If you can't find a Labs or Longevity section, you don't have it yet. Betas have it.
 
+**iOS 27.2 beta 4 (13 Oct 2026) pulled the new Health app again.** The Longevity and Insights tabs are gone and the old app is back; a pop-up says the new app is coming later this year and that data from the beta stays on the device and is viewable in Settings. Reports expect it back in an iOS 27.3 beta. Labs entered in earlier betas are not lost, but you can't see or add to them in Health until it returns.
+
 **Lab entry lives at Longevity → Labs card → "Enter Your Lab Results."** It is *not* a searchable data type: Browse-tab search for "LDL" finds nothing; "Cholesterol" finds only *dietary* cholesterol. Panels must be fully complete to count in the evaluation.
 
 **The manual forms only take each panel's core markers.** Complete Blood Count is 4 fields (WBC, Hemoglobin, Hematocrit, Platelets), yet Longevity's "Your Results" counts Blood Health as *x of 20 markers* and lists the differential and indices (basophils … neutrophils as % and count, MCH, MCHC, MCV, MPV, RBC, RDW) as missing. Cholesterol counts 7, Kidney 9, Liver 8 — again more than the forms ask for. There is no "add another marker" option, and the missing rows and "Get Deeper Insights With Labs" lead back to the same forms.
